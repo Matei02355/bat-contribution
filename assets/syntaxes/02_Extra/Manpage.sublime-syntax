@@ -9,10 +9,13 @@ scope: source.man
 variables:
   section_heading: '^(?!#)\S.*$'
   command_line_option: '(--?[A-Za-z0-9][_A-Za-z0-9-]*)'
-  ansi_escape_sequence: '\e\[[\?=]?(?:\d+;?)*[A-Za-z]'
+  ansi_escape_sequence: '(?:\e\[[\?=]?(?:[0-9:]*;?)*[A-Za-z]|\e\][^\x07\e]*(?:\x07|\e\\))'
 
 contexts:
   prototype:
+    - match: '{{ansi_escape_sequence}}'
+      scope: meta.escape-sequence.ansi.man
+
     # ignore syntax test lines
     - match: '^#'
       push:

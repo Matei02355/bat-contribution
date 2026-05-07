@@ -189,14 +189,14 @@ pub fn sanitize_for_terminal(input: &str) -> String {
 pub fn strip_overstrike(line: &str, first_backspace: usize) -> String {
     let mut output = String::with_capacity(line.len());
     output.push_str(&line[..first_backspace]);
-    output.pop();
+    pop_visible_char(&mut output);
 
     let mut remaining = &line[first_backspace + 1..];
 
     loop {
         if let Some(pos) = remaining.find('\x08') {
             output.push_str(&remaining[..pos]);
-            output.pop();
+            pop_visible_char(&mut output);
             remaining = &remaining[pos + 1..];
         } else {
             output.push_str(remaining);
@@ -205,6 +205,27 @@ pub fn strip_overstrike(line: &str, first_backspace: usize) -> String {
     }
 
     output
+}
+
+fn pop_visible_char(output: &mut String) {
+    let mut last_visible_char = None;
+
+    for seq in EscapeSequenceOffsetsIterator::new(output) {
+        if let EscapeSequenceOffsets::Text { .. } = seq {
+            let text_start = seq.index_of_start();
+            let text = &output[text_start..seq.index_past_end()];
+
+            last_visible_char = text
+                .char_indices()
+                .last()
+                .map(|(idx, ch)| (text_start + idx, ch.len_utf8()))
+                .or(last_visible_char);
+        }
+    }
+
+    if let Some((start, len)) = last_visible_char {
+        output.drain(start..start + len);
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -289,6 +310,26 @@ fn test_strip_overstrike() {
 
     // Unicode with overstrike
     assert_eq!(strip_overstrike("ä\x08äöü", 2), "äöü");
+
+    // ANSI escape sequences between the visible character and the backspace
+    // should not become part of the overstruck text.
+    let ansi_between_char_and_backspace = "v\x1b[22m\x08v";
+    assert_eq!(
+        strip_overstrike(
+            ansi_between_char_and_backspace,
+            ansi_between_char_and_backspace.find('\x08').unwrap()
+        ),
+        "\x1b[22mv"
+    );
+
+    let osc_between_char_and_backspace = "v\x1b]8;;https://example.com/\x1b\\\x08v";
+    assert_eq!(
+        strip_overstrike(
+            osc_between_char_and_backspace,
+            osc_between_char_and_backspace.find('\x08').unwrap()
+        ),
+        "\x1b]8;;https://example.com/\x1b\\v"
+    );
 }
 
 #[test]
