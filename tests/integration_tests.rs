@@ -841,7 +841,6 @@ fn long_help_with_highlighting() {
         .stdout(predicate::str::contains("Options:"));
 }
 
-
 #[test]
 fn help_with_force_colorization() {
     for args in [
