@@ -841,6 +841,36 @@ fn long_help_with_highlighting() {
         .stdout(predicate::str::contains("Options:"));
 }
 
+
+#[test]
+fn help_with_force_colorization() {
+    for args in [
+        vec!["--help", "--force-colorization"],
+        vec!["-h", "-f"],
+        vec!["-fh"],
+    ] {
+        bat()
+            .args(args)
+            .arg("--paging=never")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("\x1B["))
+            .stdout(predicate::str::contains("Usage:"))
+            .stderr("");
+    }
+}
+
+#[test]
+fn help_with_force_colorization_overrides_color_never() {
+    bat()
+        .args(["--help", "--force-colorization", "--color=never"])
+        .arg("--paging=never")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\x1B["))
+        .stderr("");
+}
+
 #[test]
 fn help_with_color_never() {
     bat()
