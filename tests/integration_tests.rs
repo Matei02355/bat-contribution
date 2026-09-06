@@ -860,14 +860,14 @@ fn help_with_force_colorization() {
 }
 
 #[test]
-fn help_with_force_colorization_overrides_color_never() {
+fn help_with_force_colorization_keeps_color_option_conflict() {
     bat()
         .args(["--help", "--force-colorization", "--color=never"])
         .arg("--paging=never")
         .assert()
-        .success()
-        .stdout(predicate::str::contains("\x1B["))
-        .stderr("");
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("cannot be used with"));
 }
 
 #[test]
