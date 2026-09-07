@@ -25,14 +25,14 @@ _{{PROJECT_EXECUTABLE}}_main() {
     local -a args
     args=(
         '(-A --show-all)'{-A,--show-all}'[show non-printable characters (space, tab, newline, ..)]'
-        --nonprintable-notation='[specify how to display non-printable characters when using --show-all]:notation:(caret unicode)'
         --binary='[specify how to treat binary content]:behavior:(no-printing as-text skip)'
         --warning='[enable optional input warnings]:kind:(none missing-trailing-newline)'
+        '(-c --nonprintable-notation)'{-c+,--nonprintable-notation=}'[specify how to display non-printable characters when using --show-all]:notation:(caret unicode symbols period binary)'
         \*{-p,--plain}'[show plain style (alias for `--style=plain`), repeat twice to disable automatic paging (alias for `--paging=never`)]'
         '(-l --language)'{-l+,--language=}'[set the language for syntax highlighting]:language:->languages'
         \*--highlight-pattern='[highlight lines matching a regular expression]:regex'
         --syntax-delimiter='[reset highlighting before matching lines]:regex'
-        \*{-H+,--highlight-line=}'[highlight specified block of lines]:start\:end'
+        \*{-H+,--highlight-line=}'[highlight line or character ranges]:range'
         --osc8'[link file headers and line numbers]'
         --osc8-highlight'[link only highlighted line numbers]'
         --hyperlink-format='[set the hyperlink URI template]:URI'
@@ -85,6 +85,7 @@ _{{PROJECT_EXECUTABLE}}_main() {
         --quiet-empty'[do not produce any output when the input is empty]'
         -P'[disable paging]'
         "--no-system-config[ignore the system-wide configuration file]"
+        "--local-config[read project configuration from the current directory and ancestors]"
         "--no-config[don't use the configuration file]"
         "--no-custom-assets[don't load custom assets]"
         '(--no-lessopen)'--lessopen'[enable the $LESSOPEN preprocessor]'

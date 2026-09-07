@@ -302,6 +302,12 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Select the notation used when non-printable characters are shown.
+    pub fn nonprintable_notation(&mut self, notation: crate::NonprintableNotation) -> &mut Self {
+        self.config.nonprintable_notation = notation;
+        self
+    }
+
     /// Whether to show "snip" markers between visible line ranges (default: no)
     pub fn snip(&mut self, yes: bool) -> &mut Self {
         self.active_style_components.snip = yes;
@@ -408,6 +414,15 @@ impl<'a> PrettyPrinter<'a> {
                 .map_err(|error| format!("Invalid highlight pattern: {error}"))?,
         );
         Ok(self)
+    }
+
+    /// Highlight an inclusive range of line and character positions.
+    pub fn highlight_region(
+        &mut self,
+        region: crate::highlight_region::HighlightRegion,
+    ) -> &mut Self {
+        self.config.highlighted_regions.push(region);
+        self
     }
 
     /// Specify the maximum number of consecutive empty lines to print.

@@ -761,6 +761,38 @@ trailing whitespace a visible background. `bat -A` remains useful for displaying
 all non-printable characters.
 
 
+### Alternative control-character notation
+
+With `--show-all` (`-A`), choose a notation using `-c` or
+`--nonprintable-notation`. `unicode` and `caret` retain their existing behavior.
+`symbols` uses pictographic marks such as ⇥, ⏎, ⌫, and ⎋ for common controls.
+`period` renders spaces, ASCII controls, and invalid UTF-8 bytes as periods.
+`binary` keeps symbols for tabs, line endings, and escapes, using periods for
+other controls and invalid bytes. Newline markers retain the line break, and
+`--tabs` controls the tab stops.
+
+```bash
+bat -A -c symbols file
+bat -A -c binary file
+```
+
+
+### Highlight part of a line
+
+Use line-and-column positions with `--highlight-line` to select exact characters:
+
+```bash
+bat --highlight-line 2.3:.7 file   # characters 3–7 on line 2
+bat --highlight-line 2.3:4.5 file # line 2, character 3 through line 4, character 5
+```
+
+Both endpoints are included, and positions start at 1. Tabs count as one
+character; combining marks and emoji sequences stay together. ANSI escape
+sequences do not count. With `--show-all`, columns refer to the resulting marker
+text. Existing whole-line ranges can be mixed with character regions by repeating
+`--highlight-line`.
+
+
 ## Configuration file
 
 `bat` can also be customized with a configuration file. The location of the file is dependent
@@ -799,6 +831,29 @@ variables, and the command line, run `bat --show-config`. Query one field with
 in order, and automatic modes remain as configured. The full listing omits
 parser defaults; a single-field query includes its parser default when available.
 An unset field produces no output.
+
+### Project configuration
+
+Pass `--local-config` on the command line to read `.batconfig` files from the
+current directory and its ancestors. They use the same format as the user
+configuration, so a repository can carry settings such as:
+
+```text
+--map-syntax "*.custom:Rust"
+```
+
+Files are read from the filesystem root toward the current directory. Nearer
+settings override ancestor and user settings; environment variables such as
+`BAT_THEME` and explicit command-line options take precedence. `BAT_OPTS`, when
+set, replaces the system/user configuration before local files are applied.
+Paths and syntax mappings retain their normal interpretation relative to the
+current directory. Selecting input files elsewhere does not change which
+configuration files are read.
+
+Local configuration is disabled by default. The opt-in flag must be supplied on
+the command line, and `--no-config` disables local files too. Enable this only in
+directories you trust, because configuration can specify pager or preprocessor
+commands.
 
 ### Format
 

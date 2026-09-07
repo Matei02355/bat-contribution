@@ -68,3 +68,17 @@ fn explicit_nonprintable_syntax_still_highlights_literal_escapes() {
         style_at(&plain, plain.find("\\x86").unwrap())
     );
 }
+
+#[test]
+fn new_notations_preserve_the_color_of_literal_escape_text() {
+    let plain = output(&["--language=txt"], b"\\xFF");
+    for notation in ["symbols", "period", "binary"] {
+        let colored = output(&["--show-all", "-c", notation], b"\xff \\xFF");
+        let position = colored.rfind("\\xFF").unwrap();
+        assert_eq!(
+            style_at(&colored, position),
+            style_at(&plain, plain.find("\\xFF").unwrap()),
+            "{notation}"
+        );
+    }
+}

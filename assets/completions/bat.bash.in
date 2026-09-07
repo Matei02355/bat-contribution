@@ -134,8 +134,8 @@ _bat() {
 		COMPREPLY=($(compgen -W "no-printing as-text skip" -- "$cur"))
 		return 0
 		;;
-	--nonprintable-notation)
-		COMPREPLY=($(compgen -W "unicode caret" -- "$cur"))
+	-c | --nonprintable-notation)
+		COMPREPLY=($(compgen -W "unicode caret symbols period binary" -- "$cur"))
 		return 0
 		;;
 	--strip-ansi)
@@ -225,6 +225,7 @@ _bat() {
 		COMPREPLY=($(compgen -W "
 			--unbuffered
 			--show-all
+			-c
 			--nonprintable-notation
 			--binary
 			--warning
@@ -289,6 +290,7 @@ _bat() {
 			--generate-config-file
 			--no-system-config
 			--no-config
+			--local-config
 			--no-custom-assets
 			--no-lessopen
 		" -- "$cur"))

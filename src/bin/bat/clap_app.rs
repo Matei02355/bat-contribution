@@ -65,17 +65,22 @@ pub fn build_app(interactive_output: bool) -> Command {
         .arg(
             Arg::new("nonprintable-notation")
                 .long("nonprintable-notation")
+                .short('c')
                 .action(ArgAction::Set)
                 .default_value("unicode")
-                .value_parser(["unicode", "caret"])
+                .value_parser(["unicode", "caret", "symbols", "period", "binary"])
                 .value_name("notation")
                 .hide_default_value(true)
                 .help("Set notation for non-printable characters.")
                 .long_help(
-                    "Set notation for non-printable characters.\n\n\
+                    "Set notation for non-printable characters with --show-all. \
+                    Tab markers occupy the configured tab width.\n\n\
                     Possible values:\n  \
                     * unicode (␇, ␊, ␀, ..)\n  \
-                    * caret   (^G, ^J, ^@, ..)",
+                    * caret   (^G, ^J, ^@, ..)\n  \
+                    * symbols (⇥, ⏎, ⌫, ⎋, ..; Unicode for other controls)\n  \
+                    * period  (periods for spaces, controls and invalid bytes)\n  \
+                    * binary  (symbols for tabs, line endings and escapes; periods for other controls)",
                 ),
         )
         .arg(
@@ -169,10 +174,14 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .long("highlight-line")
                 .short('H')
                 .action(ArgAction::Append)
-                .value_name("N:M")
-                .help("Highlight lines N through M.")
+                .value_name("range")
+                .help("Highlight line or character ranges.")
                 .long_help(
-                    "Highlight the specified line ranges with a different background color \
+                    "Highlight line ranges, or character regions using LINE.COLUMN positions. \
+                     Positions start at 1; tabs count as one character and combining marks \
+                     stay with their character. ANSI escapes do not count. With --show-all, \
+                     columns refer to the resulting marker text. Character ranges color only \
+                     selected text and use underlining if the theme has no highlight color. \
                      For example:\n  \
                      '--highlight-line 40' highlights line 40\n  \
                      '--highlight-line 30:40' highlights lines 30 to 40\n  \
@@ -180,7 +189,9 @@ pub fn build_app(interactive_output: bool) -> Command {
                      '--highlight-line 40:' highlights lines 40 to the end of the file\n  \
                      '--highlight-line 30:+10' highlights lines 30 to 40\n  \
                      '--highlight-line 30:40~2' highlights every second line from 30 to 40\n  \
-                     '--highlight-line 30~2' highlights every second line from 30 onward",
+                     '--highlight-line 30~2' highlights every second line from 30 onward\n  \
+                     '--highlight-line 2.3:.7' highlights characters 3 to 7 of line 2\n  \
+                     '--highlight-line 2.3:4.5' highlights from line 2, character 3 through line 4, character 5",
                 ),
         )
         .arg(
@@ -835,6 +846,20 @@ pub fn build_app(interactive_output: bool) -> Command {
                     "Ignore the system-wide configuration file while still loading the user \
                      configuration (including BAT_CONFIG_PATH) and environment options. \
                      This option must be passed on the command line.",
+                ),
+        )
+        .arg(
+            Arg::new("local-config")
+                .long("local-config")
+                .action(ArgAction::SetTrue)
+                .help("Read .batconfig files from the current directory and its ancestors")
+                .long_help(
+                    "Read .batconfig files from the current directory and its ancestors, \
+                     from the filesystem root downwards. Local settings override the user \
+                     configuration; environment variables and command-line options take \
+                     precedence. This flag must be supplied on the command line and is \
+                     ignored with --no-config. Enable it only in directories you trust: \
+                     configuration can specify a pager or preprocessor command.",
                 ),
         )
         .arg(

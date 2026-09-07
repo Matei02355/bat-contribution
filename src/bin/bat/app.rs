@@ -7,7 +7,10 @@ use std::thread::available_parallelism;
 
 use crate::{
     clap_app,
-    config::{get_args_from_config_file, get_args_from_env_opts_var, get_args_from_env_vars},
+    config::{
+        get_args_from_config_file, get_args_from_env_opts_var, get_args_from_env_vars,
+        get_args_from_local_config,
+    },
 };
 use bat::style::StyleComponentList;
 use bat::theme::{theme, ThemeName, ThemeOptions, ThemePreference};
@@ -79,7 +82,11 @@ impl App {
         let number_from_cli = cli_matches.get_flag("number");
         let number_nonblank_from_cli = cli_matches.get_flag("number-nonblank");
 
-        let matches = Self::matches(interactive_output, cli_matches.get_flag("no-system-config"))?;
+        let matches = Self::matches(
+            interactive_output,
+            cli_matches.get_flag("no-system-config"),
+            cli_matches.get_flag("local-config"),
+        )?;
 
         if matches.get_flag("help") {
             let help_type = if wild::args_os().any(|arg| arg == "--help") {
@@ -186,7 +193,11 @@ impl App {
         clap_app::build_app(interactive_output).get_matches_from(wild::args_os())
     }
 
-    fn matches(interactive_output: bool, skip_system_config: bool) -> Result<ArgMatches> {
+    fn matches(
+        interactive_output: bool,
+        skip_system_config: bool,
+        use_local_config: bool,
+    ) -> Result<ArgMatches> {
         // Check if we should skip config file processing for special arguments
         // that don't require full application setup (version, diagnostic)
         let should_skip_config = wild::args_os().any(|arg| {
@@ -230,6 +241,15 @@ impl App {
         } else {
             config_args.map_err(|_| "Could not parse configuration file")?
         };
+
+        if use_local_config {
+            let local_args = get_args_from_local_config();
+            args.extend(if help_requested {
+                local_args.unwrap_or_default()
+            } else {
+                local_args?
+            });
+        }
 
         // Selected env vars supersede config vars
         args.extend(get_args_from_env_vars());
@@ -392,6 +412,9 @@ impl App {
             {
                 Some("unicode") => NonprintableNotation::Unicode,
                 Some("caret") => NonprintableNotation::Caret,
+                Some("symbols") => NonprintableNotation::Symbols,
+                Some("period") => NonprintableNotation::Period,
+                Some("binary") => NonprintableNotation::Binary,
                 _ => unreachable!("other values for --nonprintable-notation are not allowed"),
             },
             binary: match self.matches.get_one::<String>("binary").map(|s| s.as_str()) {
@@ -560,7 +583,11 @@ impl App {
             highlighted_lines: self
                 .matches
                 .get_many::<String>("highlight-line")
-                .map(|ws| ws.map(|s| LineRange::from(s.as_str())).collect())
+                .map(|ws| {
+                    ws.filter(|s| !s.contains('.'))
+                        .map(|s| LineRange::from(s.as_str()))
+                        .collect()
+                })
                 .transpose()?
                 .map(LineRanges::from)
                 .map(HighlightedLineRanges)
@@ -570,6 +597,14 @@ impl App {
                 .get_many::<regex::Regex>("highlight-pattern")
                 .map(|patterns| patterns.cloned().collect())
                 .unwrap_or_default(),
+            highlighted_regions: self
+                .matches
+                .get_many::<String>("highlight-line")
+                .into_iter()
+                .flatten()
+                .filter(|s| s.contains('.'))
+                .map(|s| s.parse())
+                .collect::<Result<Vec<_>>>()?,
             use_custom_assets: !self.matches.get_flag("no-custom-assets"),
             #[cfg(feature = "lessopen")]
             use_lessopen: self.matches.get_flag("lessopen"),

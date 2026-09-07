@@ -9,7 +9,7 @@ Arguments:
 Options:
   -A, --show-all
           Show non-printable characters (space, tab, newline, ..).
-      --nonprintable-notation <notation>
+  -c, --nonprintable-notation <notation>
           Set notation for non-printable characters.
       --binary <behavior>
           How to treat binary content. (default: no-printing)
@@ -23,8 +23,8 @@ Options:
           Set a fallback language for undetected syntaxes. [aliases: --fallback-language]
       --highlight-pattern <regex>
           Highlight lines matching a regular expression.
-  -H, --highlight-line <N:M>
-          Highlight lines N through M.
+  -H, --highlight-line <range>
+          Highlight line or character ranges.
       --osc8
           Link file headers and line numbers using OSC 8 hyperlinks.
       --osc8-highlight
@@ -88,6 +88,8 @@ Options:
           Enable unbuffered input reading for streaming use cases.
       --no-system-config
           Ignore the system-wide configuration file.
+      --local-config
+          Read .batconfig files from the current directory and its ancestors
       --completion <SHELL>
           Show shell completion for a certain shell. [possible values: bash, fish, zsh, ps1]
       --show-config [<field>]

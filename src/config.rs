@@ -1,3 +1,4 @@
+use crate::highlight_region::HighlightRegion;
 use crate::line_range::{HighlightedLineRanges, LineRanges};
 use crate::nonprintable_notation::{BinaryBehavior, NonprintableNotation};
 #[cfg(feature = "paging")]
@@ -120,6 +121,8 @@ pub struct Config<'a> {
 
     /// Regular expressions selecting additional lines to highlight.
     pub highlighted_patterns: Vec<regex::Regex>,
+    /// Character ranges highlighted without coloring the rest of the line.
+    pub highlighted_regions: Vec<HighlightRegion>,
 
     /// Whether or not to allow custom assets. If this is false or if custom assets (a.k.a.
     /// cached assets) are not available, assets from the binary will be used instead.

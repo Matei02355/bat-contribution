@@ -26,7 +26,7 @@ either '--language value', '--language=value', '-l value' or '-lvalue'.
 Show non\-printable characters like space, tab or newline. Use '\-\-tabs' to
 control the width of the tab\-placeholders.
 .HP
-\fB\-\-nonprintable\-notation\fR <notation>
+\fB\-c\fR, \fB\-\-nonprintable\-notation\fR <notation>
 .IP
 Specify how to display non-printable characters when using \-\-show\-all.
 
@@ -36,6 +36,15 @@ Possible values:
 Use character sequences like ^G, ^J, ^@, .. to identify non-printable characters
 .IP "unicode"
 Use special Unicode code points to identify non-printable characters
+.IP "symbols"
+Use pictographic symbols for common controls: tab ⇥, line feed ⏎, carriage return ←,
+backspace ⌫, vertical tab ⤓, form feed ↡, escape ⎋, and delete ⌦.
+Other controls use Unicode control pictures.
+.IP "period"
+Use periods for spaces, ASCII controls, and invalid UTF-8 bytes.
+.IP "binary"
+Use symbols for tabs, line endings, and escapes; periods for other ASCII controls
+and invalid UTF-8 bytes. Spaces use the usual middle-dot marker.
 .RE
 .HP
 \fB\-\-binary\fR <behavior>
@@ -89,7 +98,19 @@ highlights lines 1 to 40
 highlights lines 40 to the end of the file
 .IP "\-\-highlight\-line 30:+10"
 highlights lines 30 to 40
+.IP "\-\-highlight\-line 2.3:.7"
+highlights characters 3 through 7 of line 2
+.IP "\-\-highlight\-line 2.3:4.5"
+highlights from line 2, character 3 through line 4, character 5
 .RE
+Character regions use inclusive LINE.COLUMN positions. A single position selects
+one character; an omitted end selects through the end of the file. A column
+without a line number refers to the starting line. Positions start at 1 and must
+be in ascending order. Columns count Unicode grapheme clusters before tab
+expansion; tabs count as one character, and ANSI escape sequences do not count.
+With --show-all, positions refer to the resulting marker text. Character ranges
+highlight only selected text, without padding to the terminal edge. If the theme
+has no line-highlight color, selected text is underlined instead.
 .HP
 \fB\-\-file\-name\fR <name>...
 .IP
@@ -478,6 +499,12 @@ To generate a default configuration file, call:
 
 \fB{{PROJECT_EXECUTABLE}} --generate-config-file\fR
 
+With \fB--local-config\fR, additionally reads .batconfig files in the current
+directory and its ancestors, from the filesystem root downwards. Nearer files
+override ancestor and user configuration. Selected environment variables and
+command-line options take precedence. BAT_OPTS replaces system/user configuration
+before local files are read. Input paths do not affect configuration discovery.
+
 These are related options:
 .HP
 \fB\-\-show\-config\fR [field]
@@ -501,6 +528,13 @@ Generates a default configuration file.
 \fB\-\-no\-config\fR
 .IP
 Do not use the configuration file.
+.HP
+\fB\-\-local\-config\fR
+.IP
+Read .batconfig files from the current directory and its ancestors.
+This opt-in flag must be supplied on the command line and is ignored with
+\fB--no-config\fR. Enable it only for trusted directories, since configuration
+can specify pager or preprocessor commands.
 .SH "ADDING CUSTOM LANGUAGES"
 {{PROJECT_EXECUTABLE}} supports Sublime Text \fB.sublime-syntax\fR language files, and can be
 customized to add additional languages to your local installation. To do this, add the \fB.sublime-syntax\fR language
@@ -546,6 +580,12 @@ Alternatively, the preprocessor may be enabled by default by adding the '\-\-les
 To temporarily disable the preprocessor if it is enabled by default, call:
 
 \fB{{PROJECT_EXECUTABLE}} --no-lessopen\fR
+
+With \fB--local-config\fR, additionally reads .batconfig files in the current
+directory and its ancestors, from the filesystem root downwards. Nearer files
+override ancestor and user configuration. Selected environment variables and
+command-line options take precedence. BAT_OPTS replaces system/user configuration
+before local files are read. Input paths do not affect configuration discovery.
 
 These are related options:
 .HP

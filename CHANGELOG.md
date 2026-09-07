@@ -54,6 +54,9 @@
 - Detect syntax from a regular file redirected to stdin on Linux and Android, see #3959 (@Matei02355)
 - Add `--style-for <language> <style>` and a library setter for per-syntax decorations, see #3960 (@Matei02355)
 - Support GNOME color scheme preferences on Linux with `--theme auto:system`, see #3961 (@Matei02355)
+- Add opt-in `.batconfig` files for inherited project settings with `--local-config`, see #3962 (@Matei02355)
+- Add symbols, period, and binary notations for non-printable characters, plus the `-c` shortcut, see #3963 (@Matei02355)
+- Support inclusive line/character regions with `--highlight-line L.C:L.C`, see #3964 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)

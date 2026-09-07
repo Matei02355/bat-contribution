@@ -13,12 +13,16 @@ Options:
           Show non-printable characters like space, tab or newline. This option can also be used to
           print binary files. Use '--tabs' to control the width of the tab-placeholders.
 
-      --nonprintable-notation <notation>
-          Set notation for non-printable characters.
+  -c, --nonprintable-notation <notation>
+          Set notation for non-printable characters with --show-all. Tab markers occupy the
+          configured tab width.
           
           Possible values:
             * unicode (␇, ␊, ␀, ..)
             * caret   (^G, ^J, ^@, ..)
+            * symbols (⇥, ⏎, ⌫, ⎋, ..; Unicode for other controls)
+            * period  (periods for spaces, controls and invalid bytes)
+            * binary  (symbols for tabs, line endings and escapes; periods for other controls)
 
       --binary <behavior>
           How to treat binary content. (default: no-printing)
@@ -58,8 +62,12 @@ Options:
           match any of several patterns; it can also be combined with '--highlight-line'. Use '(?i)'
           for case-insensitive matching.
 
-  -H, --highlight-line <N:M>
-          Highlight the specified line ranges with a different background color For example:
+  -H, --highlight-line <range>
+          Highlight line ranges, or character regions using LINE.COLUMN positions. Positions start
+          at 1; tabs count as one character and combining marks stay with their character. ANSI
+          escapes do not count. With --show-all, columns refer to the resulting marker text.
+          Character ranges color only selected text and use underlining if the theme has no
+          highlight color. For example:
             '--highlight-line 40' highlights line 40
             '--highlight-line 30:40' highlights lines 30 to 40
             '--highlight-line :40' highlights lines 1 to 40
@@ -67,6 +75,9 @@ Options:
             '--highlight-line 30:+10' highlights lines 30 to 40
             '--highlight-line 30:40~2' highlights every second line from 30 to 40
             '--highlight-line 30~2' highlights every second line from 30 onward
+            '--highlight-line 2.3:.7' highlights characters 3 to 7 of line 2
+            '--highlight-line 2.3:4.5' highlights from line 2, character 3 through line 4, character
+            5
 
       --osc8
           Link file headers and line numbers using OSC 8 hyperlinks.
@@ -347,6 +358,13 @@ Options:
           Ignore the system-wide configuration file while still loading the user configuration
           (including BAT_CONFIG_PATH) and environment options. This option must be passed on the
           command line.
+
+      --local-config
+          Read .batconfig files from the current directory and its ancestors, from the filesystem
+          root downwards. Local settings override the user configuration; environment variables and
+          command-line options take precedence. This flag must be supplied on the command line and
+          is ignored with --no-config. Enable it only in directories you trust: configuration can
+          specify a pager or preprocessor command.
 
       --completion <SHELL>
           Show shell completion for a certain shell. [possible values: bash, fish, zsh, ps1]

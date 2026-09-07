@@ -87,6 +87,47 @@ fn format_permissions(permissions: &std::fs::Permissions) -> String {
     }
 }
 
+/// Split only at selected character boundaries, retaining the syntax style.
+/// Empty selections leave the original regions and allocation unchanged.
+fn split_highlighted_regions(
+    regions: &mut Vec<(syntect::highlighting::Style, &str)>,
+    selected: &[std::ops::Range<usize>],
+    underline: bool,
+) -> Vec<bool> {
+    if selected.is_empty() {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    let mut highlighted = Vec::new();
+    let mut offset = 0;
+    let mut selection = 0;
+    for &(style, region) in regions.iter() {
+        let region_end = offset + region.len();
+        let mut position = offset;
+        while position < region_end {
+            while selection < selected.len() && selected[selection].end <= position {
+                selection += 1;
+            }
+            let active = selected
+                .get(selection)
+                .is_some_and(|r| r.contains(&position));
+            let end = selected.get(selection).map_or(region_end, |range| {
+                region_end.min(if active { range.end } else { range.start })
+            });
+            let mut style = style;
+            if active && underline {
+                style.font_style.insert(FontStyle::UNDERLINE);
+            }
+            result.push((style, &region[position - offset..end - offset]));
+            highlighted.push(active);
+            position = end;
+        }
+        offset = region_end;
+    }
+    *regions = result;
+    highlighted
+}
+
 // Return the displayed width of a character.
 //
 // Control characters (0x00..=0x1F and 0x7F) are rendered by the terminal
@@ -299,7 +340,9 @@ impl<'a> InteractivePrinter<'a> {
         let mut decorations: Vec<Box<dyn Decoration>> = Vec::new();
 
         if config.style_components.highlight_indicator()
-            && (!config.highlighted_lines.0.is_empty() || !config.highlighted_patterns.is_empty())
+            && (!config.highlighted_lines.0.is_empty()
+                || !config.highlighted_patterns.is_empty()
+                || !config.highlighted_regions.is_empty())
         {
             decorations.push(Box::new(HighlightIndicatorDecoration));
         }
@@ -620,6 +663,7 @@ impl<'a> InteractivePrinter<'a> {
         regions: &[(syntect::highlighting::Style, &str)],
         width: usize,
         background_color: Option<Color>,
+        highlighted_parts: &[bool],
     ) -> Result<()> {
         let tab_width = if self.config.tab_width == 0 {
             8
@@ -656,7 +700,12 @@ impl<'a> InteractivePrinter<'a> {
         let available = width.saturating_sub(usize::from(truncated));
         let mut column = 0;
         let mut clipped = false;
-        for (style, region) in &expanded {
+        for (index, (style, region)) in expanded.iter().enumerate() {
+            let region_background = background_color.or_else(|| {
+                (self.config.colored_output && highlighted_parts.get(index) == Some(&true))
+                    .then_some(self.background_color_highlight)
+                    .flatten()
+            });
             for chunk in EscapeSequenceIterator::new(region) {
                 if let EscapeSequence::Text(text) = chunk {
                     if clipped {
@@ -682,7 +731,7 @@ impl<'a> InteractivePrinter<'a> {
                                 self.config.true_color,
                                 self.config.colored_output,
                                 self.config.use_italic_text,
-                                background_color,
+                                region_background,
                             ),
                             self.ansi_style.to_reset_sequence(),
                         )?;
@@ -1107,6 +1156,20 @@ impl Printer for InteractivePrinter<'_> {
             .background_color_highlight
             .filter(|_| highlight_this_line && self.config.colored_output);
 
+        let character_ranges = crate::highlight_region::selected_byte_ranges(
+            &line,
+            line_number,
+            &self.config.highlighted_regions,
+        );
+        let highlighted_parts = split_highlighted_regions(
+            &mut regions,
+            &character_ranges,
+            self.config.colored_output && self.background_color_highlight.is_none(),
+        );
+
+        self.highlighted_line |= !character_ranges.is_empty();
+        self.highlight_this_line |= !character_ranges.is_empty();
+
         // Line decorations.
         if self.panel_width > 0 {
             let display_line_number =
@@ -1129,13 +1192,24 @@ impl Printer for InteractivePrinter<'_> {
 
         // Line contents.
         if self.config.wrapping_mode == WrappingMode::Truncate {
-            self.print_truncated_line(handle, &regions, cursor_max, background_color)?;
+            self.print_truncated_line(
+                handle,
+                &regions,
+                cursor_max,
+                background_color,
+                &highlighted_parts,
+            )?;
         } else if matches!(self.config.wrapping_mode, WrappingMode::NoWrapping(_)) {
             let true_color = self.config.true_color;
             let colored_output = self.config.colored_output;
             let italics = self.config.use_italic_text;
 
-            for &(style, region) in &regions {
+            for (index, &(style, region)) in regions.iter().enumerate() {
+                let region_background = background_color.or_else(|| {
+                    (self.config.colored_output && highlighted_parts.get(index) == Some(&true))
+                        .then_some(self.background_color_highlight)
+                        .flatten()
+                });
                 let ansi_iterator = EscapeSequenceIterator::new(region);
                 for chunk in ansi_iterator {
                     match chunk {
@@ -1153,7 +1227,7 @@ impl Printer for InteractivePrinter<'_> {
                                     true_color,
                                     colored_output,
                                     italics,
-                                    background_color
+                                    region_background
                                 ),
                                 self.ansi_style.to_reset_sequence(),
                             )?;
@@ -1190,7 +1264,12 @@ impl Printer for InteractivePrinter<'_> {
                 writeln!(handle)?;
             }
         } else {
-            for &(style, region) in &regions {
+            for (index, &(style, region)) in regions.iter().enumerate() {
+                let region_background = background_color.or_else(|| {
+                    (self.config.colored_output && highlighted_parts.get(index) == Some(&true))
+                        .then_some(self.background_color_highlight)
+                        .flatten()
+                });
                 let ansi_iterator = EscapeSequenceIterator::new(region);
                 for chunk in ansi_iterator {
                     match chunk {
@@ -1277,7 +1356,7 @@ impl Printer for InteractivePrinter<'_> {
                                             self.config.true_color,
                                             self.config.colored_output,
                                             self.config.use_italic_text,
-                                            background_color
+                                            region_background
                                         ),
                                         self.ansi_style.to_reset_sequence(),
                                         panel_wrap.clone().unwrap()
@@ -1315,7 +1394,7 @@ impl Printer for InteractivePrinter<'_> {
                                     self.config.true_color,
                                     self.config.colored_output,
                                     self.config.use_italic_text,
-                                    background_color
+                                    region_background
                                 )
                             )?;
                         }

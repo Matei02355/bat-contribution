@@ -33,6 +33,7 @@ pub mod controller;
 mod decorations;
 mod diff;
 pub mod error;
+pub mod highlight_region;
 pub mod hyperlink;
 pub mod input;
 mod less;
