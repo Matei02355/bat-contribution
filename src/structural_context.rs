@@ -46,6 +46,7 @@ impl Structure {
         let mut comments = Vec::new();
         let mut imports = Vec::new();
         let mut comment_start = None;
+        let mut last_comment_line = 0;
         let mut import_start = None;
         // Resolve scope prefixes once, outside the input loop.
         let scope = |s| Scope::new(s).expect("valid static scope");
@@ -76,7 +77,6 @@ impl Structure {
             lines = line_number;
             let operations = parser.parse_line(line, set).map_err(syntect::Error::from)?;
             let mut previous = 0;
-            let mut comment_line = false;
             let mut import_line = false;
             // Inspect nonempty spans only; grammars often pop and restore a
             // scope at the same byte offset while changing parsing contexts.
@@ -88,7 +88,12 @@ impl Structure {
                 let part = &line[previous..offset];
                 let has = |prefix: Scope| scopes.as_slice().iter().any(|s| prefix.is_prefix_of(*s));
                 if !part.is_empty() {
-                    comment_line |= has(block_comment);
+                    if has(block_comment) {
+                        comment_start.get_or_insert(line_number);
+                        last_comment_line = line_number;
+                    } else if let Some(first) = comment_start.take() {
+                        comments.push((first, last_comment_line));
+                    }
                     import_line |= import_scopes.iter().any(|s| has(*s));
                 }
                 if !part.trim().is_empty() && !has(comment) && !has(string) {
@@ -157,24 +162,19 @@ impl Structure {
                 }
                 previous = offset;
             }
-            for (active, start, ranges) in [
-                (comment_line, &mut comment_start, &mut comments),
-                (import_line, &mut import_start, &mut imports),
-            ] {
-                if active {
-                    start.get_or_insert(line_number);
-                } else if let Some(first) = start.take() {
-                    ranges.push((first, line_number - 1));
-                }
-            }
-        }
-        if let Some(first) = comment_start {
             if !scopes
                 .as_slice()
                 .iter()
                 .any(|s| block_comment.is_prefix_of(*s))
             {
-                comments.push((first, lines));
+                if let Some(first) = comment_start.take() {
+                    comments.push((first, last_comment_line));
+                }
+            }
+            if import_line {
+                import_start.get_or_insert(line_number);
+            } else if let Some(first) = import_start.take() {
+                imports.push((first, line_number - 1));
             }
         }
         if let Some(first) = import_start {

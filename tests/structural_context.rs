@@ -228,3 +228,14 @@ fn utf16be_and_unclosed_comments_do_not_loop_or_disappear() {
         .success()
         .stdout(text);
 }
+
+#[test]
+fn adjacent_block_comments_preserve_code_on_their_shared_line() {
+    let text = "/* first\n * inside first\n */ int visible = 1; /* second\n * inside second\n */\n";
+    bat()
+        .args(["-l", "c", "--fold"])
+        .write_stdin(text)
+        .assert()
+        .success()
+        .stdout("/* first\n */ int visible = 1; /* second\n */\n");
+}
