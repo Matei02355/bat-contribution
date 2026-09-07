@@ -1004,7 +1004,7 @@ fn list_languages_includes_mappings_for_syntaxes_without_file_extensions() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("LaTeX Log:*.latex-log\n"));
+        .stdout(predicate::str::contains("LaTeX Log:latex-log\n"));
 }
 
 #[test]

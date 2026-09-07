@@ -92,6 +92,14 @@ Options:
           particular line. Unnamed stdin has no links. These options require a terminal or pager
           that supports OSC 8.
 
+      --process <command>
+          Run a separate command for each input, passing that input on its standard input. Display
+          the command's output with the original file name and syntax. Arguments use shell-style
+          quoting; shell operators are not interpreted. For example: --process 'python -m json.tool'
+          data.json. Standard error is inherited, and a failed process makes bat fail. Line ranges
+          and numbers apply to processed output. Git change markers and LESSOPEN preprocessing are
+          not applied to filtered inputs.
+
       --file-name <name>
           Specify the name to display for a file. Useful when piping data to bat from STDIN when bat
           does not otherwise know the filename. Note that the provided file name is also used for
@@ -235,11 +243,12 @@ Options:
             * dark: Use the dark theme specified by '--theme-dark'.
             * light: Use the light theme specified by '--theme-light'.
 
-      --set-theme-color <name> <RRGGBB>
+      --set-theme-color <name> <color>
           Override a global theme color without rebuilding theme assets. Supported names:
           foreground, gutterForeground, lineHighlight. Colors are six hexadecimal digits (RRGGBB or
-          '#RRGGBB'). Repeat this option to set multiple colors; the last value for a name wins. For
-          example: --set-theme-color lineHighlight 444444.
+          '#RRGGBB'); foreground and gutterForeground also accept 'default' to use the terminal's
+          normal text color. Repeat this option to set multiple colors; the last value for a name
+          wins. For example: --set-theme-color lineHighlight 444444.
 
       --theme-light <theme>
           Sets the theme name for syntax highlighting used when the terminal uses a light

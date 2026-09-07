@@ -8,13 +8,14 @@ mod completions;
 mod config;
 mod directories;
 mod input;
+mod process;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::io;
 use std::io::{BufReader, Write};
 use std::path::Path;
-use std::process;
+use std::process as std_process;
 
 use bat::output::{OutputHandle, OutputType};
 use nu_ansi_term::Color::Green;
@@ -91,7 +92,17 @@ where
     for mapping in mappings {
         if let (matcher, MappingTarget::MapTo(s)) = mapping {
             let globs = map.entry(*s).or_insert_with(Vec::new);
-            globs.push(matcher.glob().glob().into());
+            let pattern = matcher.glob().glob();
+            let displayed = pattern
+                .strip_prefix("*.")
+                .filter(|extension| {
+                    !extension.is_empty()
+                        && extension
+                            .chars()
+                            .all(|c| c.is_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'))
+                })
+                .unwrap_or(pattern);
+            globs.push(displayed.into());
         }
     }
     map
@@ -133,8 +144,11 @@ pub fn get_languages(config: &Config, cache_dir: &Path) -> Result<String> {
 
     for lang in &mut languages {
         if let Some(additional_paths) = configured_languages.get(lang.name.as_str()) {
-            lang.file_extensions
-                .extend(additional_paths.iter().cloned());
+            for path in additional_paths {
+                if !lang.file_extensions.contains(path) {
+                    lang.file_extensions.push(path.clone());
+                }
+            }
         }
     }
 
@@ -474,13 +488,13 @@ fn main() {
         Err(error) => {
             let stderr = std::io::stderr();
             default_error_handler(&error, &mut stderr.lock());
-            process::exit(1);
+            std_process::exit(1);
         }
         Ok(false) => {
-            process::exit(1);
+            std_process::exit(1);
         }
         Ok(true) => {
-            process::exit(0);
+            std_process::exit(0);
         }
     }
 }

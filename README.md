@@ -485,6 +485,17 @@ as `--style`; explicit plain and numbering flags still take precedence.
 
 ### Highlighting theme
 
+If plain text is too bright with your chosen theme, keep syntax colors while
+using the terminal's normal text color:
+
+```bash
+bat --set-theme-color foreground default file.rs
+```
+
+To use a specific color instead, replace `default` with an RGB value such as
+`a0a0a0`. This controls the theme foreground; it does not change bold attributes.
+
+
 Use `bat --list-themes` to get a list of all available themes for syntax
 highlighting. By default, `bat` uses `Monokai Extended` or `Monokai Extended Light`
 for dark and light themes respectively. To select the `TwoDark` theme, call `bat`
@@ -792,6 +803,23 @@ sequences do not count. With `--show-all`, columns refer to the resulting marker
 text. Existing whole-line ranges can be mixed with character regions by repeating
 `--highlight-line`.
 
+### Processing inputs
+
+Use `--process` to run a formatter or filter for each file while keeping its
+filename and syntax highlighting:
+
+```bash
+bat --process "python -m json.tool" first.json second.json
+printf '{"answer":42}\n' | bat --process "python -m json.tool" --language=json
+```
+
+Each command reads one input from standard input. Its output is streamed into
+bat, so filters can produce large outputs without buffering the entire result.
+Arguments support shell-style quoting; pipes, redirections and variable
+expansion require an explicit shell command. A process failure makes bat fail,
+and process diagnostics go to standard error. Line numbers, line ranges and
+highlights refer to the processed text. Git change markers are omitted;
+`--diff` and `--lessopen` cannot be combined with `--process`.
 
 ## Configuration file
 

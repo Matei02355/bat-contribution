@@ -57,6 +57,7 @@
 - Add opt-in `.batconfig` files for inherited project settings with `--local-config`, see #3962 (@Matei02355)
 - Add symbols, period, and binary notations for non-printable characters, plus the `-c` shortcut, see #3963 (@Matei02355)
 - Support inclusive line/character regions with `--highlight-line L.C:L.C`, see #3964 (@Matei02355)
+- Add `--process` to stream each input through a command while retaining its filename and syntax, see #3967 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)
@@ -88,6 +89,7 @@
 - Include languages without file extensions in language listings and completion candidates, see #3917 (@Matei02355)
 
 - Wrap colored headers using terminal display width and preserve their styling, see #3918 (@Matei02355)
+- Display simple mapped extensions consistently in language listings and avoid duplicates, see #3966 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)
@@ -133,6 +135,8 @@
 - Replace `libgit2` with a pure Rust implementation of git called `gitoxide`, see PR #3703 (@blinxen)
 
 ## Syntaxes
+
+- Add Prolog syntax highlighting, see #3965 (@Matei02355)
 
 - Add shebang-based detection for Tcl (`tclsh`, `wish`) and Expect (`expect`) scripts, see #3647 (@mvanhorn)
 - Change the URL of Zig submodule from GitHub to Codeberg, see #3519 (@sorairolake)

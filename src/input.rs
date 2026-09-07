@@ -101,6 +101,7 @@ pub struct Input<'a> {
     pub(crate) kind: InputKind<'a>,
     pub(crate) metadata: InputMetadata,
     pub(crate) description: InputDescription,
+    pub(crate) reader_override: Option<Box<dyn Read + 'a>>,
 }
 
 pub(crate) enum OpenedInputKind {
@@ -150,6 +151,7 @@ impl<'a> Input<'a> {
             description: kind.description(),
             metadata,
             kind,
+            reader_override: None,
         }
     }
 
@@ -159,6 +161,7 @@ impl<'a> Input<'a> {
             description: kind.description(),
             metadata: InputMetadata::default(),
             kind,
+            reader_override: None,
         }
     }
 
@@ -168,6 +171,7 @@ impl<'a> Input<'a> {
             description: kind.description(),
             metadata: InputMetadata::default(),
             kind,
+            reader_override: None,
         }
     }
 
@@ -175,6 +179,21 @@ impl<'a> Input<'a> {
     /// The limit applies to bytes, so it may end within a character or line.
     pub fn with_max_bytes(mut self, limit: u64) -> Self {
         self.metadata.max_bytes = Some(self.metadata.max_bytes.map_or(limit, |old| old.min(limit)));
+        self
+    }
+
+    /// Replace the contents while retaining the input's name and source identity.
+    ///
+    /// The original source is not opened. Its size is cleared, and Git change
+    /// markers are disabled because replacement contents may have different lines.
+    pub fn with_reader(mut self, reader: Box<dyn Read + 'a>) -> Self {
+        self.reader_override = Some(reader);
+        self.metadata.size = None;
+        if self.metadata.user_provided_name.is_none() {
+            if let InputKind::OrdinaryFile(path) = &self.kind {
+                self.metadata.user_provided_name = Some(path.clone());
+            }
+        }
         self
     }
 
@@ -211,6 +230,17 @@ impl<'a> Input<'a> {
         let description = self.description().clone();
         let max_bytes = self.metadata.max_bytes.unwrap_or(u64::MAX);
         let raw_stream = self.metadata.raw_stream;
+        if let Some(reader) = self.reader_override {
+            return Ok(OpenedInput {
+                kind: OpenedInputKind::CustomReader,
+                metadata: self.metadata,
+                description,
+                reader: InputReader::with_raw_stream(
+                    BufReader::new(reader.take(max_bytes)),
+                    raw_stream,
+                )?,
+            });
+        }
         match self.kind {
             InputKind::StdIn => {
                 if let Some(stdout) = stdout_identifier {

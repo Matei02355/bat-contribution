@@ -299,5 +299,6 @@ complete -c $bat -l pager-arg -r -f -d "Append a literal argument to the selecte
 complete -c $bat -l fail-if-syntax-unsupported -d "Silently reject inputs without a specific syntax" -n __bat_no_excl_args
 complete -c $bat -l max-bytes -x -d "Read at most N bytes per input" -n __bat_no_excl_args
 complete -c $bat -l head -x -d "Alias for --max-bytes" -n __bat_no_excl_args
-complete -c $bat -l set-theme-color -x -a "foreground gutterForeground lineHighlight" -d "Override a global theme color (name RRGGBB)" -n __bat_no_excl_args
+complete -c $bat -l set-theme-color -x -a "foreground gutterForeground lineHighlight" -d "Override a global theme color (name color)" -n __bat_no_excl_args
 complete -c $bat -l show-config -f -d "Show merged configuration arguments" -n __bat_no_excl_args
+complete -c $bat -l process -x -d "Filter each input through a command" -n __bat_no_excl_args

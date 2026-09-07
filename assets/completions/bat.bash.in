@@ -165,7 +165,7 @@ _bat() {
 	--pager-arg)
 		return 0
 		;;
-	--pager)
+	--pager | --process)
 		COMPREPLY=($(compgen -c -- "$cur"))
 		return 0
 		;;
@@ -255,6 +255,7 @@ _bat() {
 			--pager
 			--pager-arg=
 			--fail-if-syntax-unsupported
+			--process
 			--map-syntax
 			--ignored-suffix
 			--theme

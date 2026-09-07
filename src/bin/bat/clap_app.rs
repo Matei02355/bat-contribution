@@ -226,6 +226,20 @@ pub fn build_app(interactive_output: bool) -> Command {
                 ),
         )
         .arg(
+            Arg::new("process")
+                .long("process")
+                .value_name("command")
+                .overrides_with("process")
+                .value_parser(crate::process::ProcessCommand::parse)
+                .help("Filter each input through a command before displaying it.")
+                .long_help("Run a separate command for each input, passing that input on its standard input. \
+                    Display the command's output with the original file name and syntax. Arguments use \
+                    shell-style quoting; shell operators are not interpreted. For example: \
+                    --process 'python -m json.tool' data.json. Standard error is inherited, and a failed \
+                    process makes bat fail. Line ranges and numbers apply to processed output. \
+                    Git change markers and LESSOPEN preprocessing are not applied to filtered inputs."),
+        )
+        .arg(
             Arg::new("file-name")
                 .long("file-name")
                 .action(ArgAction::Append)
@@ -284,6 +298,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                         .overrides_with("diff")
                         .action(ArgAction::SetTrue)
                         .conflicts_with("line-range")
+                        .conflicts_with("process")
                         .help("Only show lines that have been added/removed/modified.")
                         .long_help(
                             "Only show lines that have been added/removed/modified with respect \
@@ -610,12 +625,13 @@ pub fn build_app(interactive_output: bool) -> Command {
             Arg::new("set-theme-color")
                 .long("set-theme-color")
                 .num_args(2)
-                .value_names(["name", "RRGGBB"])
+                .value_names(["name", "color"])
                 .action(ArgAction::Append)
                 .help("Override a global theme color.")
                 .long_help("Override a global theme color without rebuilding theme assets. Supported names: \
                     foreground, gutterForeground, lineHighlight. Colors are six hexadecimal digits \
-                    (RRGGBB or '#RRGGBB'). Repeat this option to set multiple colors; the last value \
+                    (RRGGBB or '#RRGGBB'); foreground and gutterForeground also accept 'default' \
+                    to use the terminal's normal text color. Repeat this option to set multiple colors; the last value \
                     for a name wins. For example: --set-theme-color lineHighlight 444444."),
         )
         .arg(
@@ -895,6 +911,7 @@ pub fn build_app(interactive_output: bool) -> Command {
             .arg(
                 Arg::new("lessopen")
                     .long("lessopen")
+                    .conflicts_with("process")
                     .action(ArgAction::SetTrue)
                     .help("Enable the $LESSOPEN preprocessor"),
             )
