@@ -24,6 +24,7 @@ fn notebook_filter() -> String {
 
 #[test]
 #[cfg(unix)]
+#[ignore = "requires Python 3; the host CI job runs notebook previews explicitly"]
 fn notebook_preview_preserves_cells_outputs_and_embedded_fences() {
     let expected = "## Cell 1\n\n# Notebook café\nSaved analysis\n\n## Cell 2\n\n````python\nprint('hello')\n# embedded ``` fence\n````\n\n```text\nhello world\n```\n\n```text\n42\n```\n\n```text\n[Output: image/png]\n```\n\n```text\nTraceback line 1\nValueError: bad\n```\n\n## Cell 3\n\n````text\nraw ``` fence\n````\n";
     bat()
@@ -43,6 +44,7 @@ fn notebook_preview_preserves_cells_outputs_and_embedded_fences() {
 
 #[test]
 #[cfg(unix)]
+#[ignore = "requires Python 3; the host CI job runs notebook previews explicitly"]
 fn notebook_preview_handles_missing_metadata_and_invalid_inputs() {
     use predicates::prelude::*;
 
