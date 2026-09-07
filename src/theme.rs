@@ -19,6 +19,7 @@ pub struct ThemeColorOverrides {
 impl ThemeColorOverrides {
     /// Set `foreground`, `gutterForeground`, or `lineHighlight` to an opaque RGB
     /// color written as six hexadecimal digits, optionally prefixed with `#`.
+    /// Foreground and gutter foreground also accept `default` for the terminal color.
     pub fn set(&mut self, name: &str, value: &str) -> crate::error::Result<()> {
         let target = match name {
             "foreground" => &mut self.foreground,
@@ -28,6 +29,15 @@ impl ThemeColorOverrides {
                 "unknown theme color '{name}'; expected foreground, gutterForeground, or lineHighlight"
             ).into()),
         };
+        if value == "default" && name != "lineHighlight" {
+            *target = Some(syntect::highlighting::Color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 1,
+            });
+            return Ok(());
+        }
         let hex = value.strip_prefix('#').unwrap_or(value);
         if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(format!(

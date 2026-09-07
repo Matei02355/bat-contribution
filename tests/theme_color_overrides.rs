@@ -166,3 +166,53 @@ fn help_output_uses_overridden_foreground() {
     let output = String::from_utf8(output).unwrap();
     assert!(output.contains("38;2;18;52;86m"), "{output:?}");
 }
+
+#[test]
+fn terminal_default_foreground_keeps_plain_text_uncolored_and_syntax_colored() {
+    for name in ["foreground", "gutterForeground"] {
+        let mut overrides = bat::theme::ThemeColorOverrides::default();
+        overrides.set(name, "default").unwrap();
+    }
+    for earlier in ["123456", "default"] {
+        bat()
+            .args([
+                "--theme=Monokai Extended",
+                "--style=plain",
+                "--color=always",
+                "--language=txt",
+                "--set-theme-color",
+                "foreground",
+                earlier,
+                "--set-theme-color",
+                "foreground",
+                "default",
+            ])
+            .write_stdin("ordinary text\n")
+            .assert()
+            .success()
+            .stdout("ordinary text\n");
+    }
+    let output = bat()
+        .env("COLORTERM", "truecolor")
+        .args([
+            "--theme=Monokai Extended",
+            "--style=plain",
+            "--color=always",
+            "--language=Rust",
+            "--set-theme-color",
+            "foreground",
+            "default",
+        ])
+        .write_stdin("fn main() {}\n")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).unwrap();
+    assert!(output.contains("\x1b[38;2;"), "{output:?}");
+    assert!(!output.contains("38;2;248;248;242m"), "{output:?}");
+    assert!(bat::theme::ThemeColorOverrides::default()
+        .set("lineHighlight", "default")
+        .is_err());
+}

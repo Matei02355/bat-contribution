@@ -445,12 +445,13 @@ pub fn build_app(interactive_output: bool) -> Command {
             Arg::new("set-theme-color")
                 .long("set-theme-color")
                 .num_args(2)
-                .value_names(["name", "RRGGBB"])
+                .value_names(["name", "color"])
                 .action(ArgAction::Append)
                 .help("Override a global theme color.")
                 .long_help("Override a global theme color without rebuilding theme assets. Supported names: \
                     foreground, gutterForeground, lineHighlight. Colors are six hexadecimal digits \
-                    (RRGGBB or '#RRGGBB'). Repeat this option to set multiple colors; the last value \
+                    (RRGGBB or '#RRGGBB'); foreground and gutterForeground also accept 'default' \
+                    to use the terminal's normal text color. Repeat this option to set multiple colors; the last value \
                     for a name wins. For example: --set-theme-color lineHighlight 444444."),
         )
         .arg(
