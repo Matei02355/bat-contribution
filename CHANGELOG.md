@@ -3,7 +3,7 @@
 
 ## Features
 
-- Open a single input at a line with `--scroll-to`, center its first visible highlight with `--center-highlight`, or use `file:line` while retaining earlier output, see #0 (@Matei02355)
+- Open a single input at a line with `--scroll-to`, center its first visible highlight with `--center-highlight`, or use `file:line` while retaining earlier output, see #3990 (@Matei02355)
 
 ## Other
 
