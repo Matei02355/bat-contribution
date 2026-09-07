@@ -10,6 +10,7 @@ use std::{
 use std::thread;
 
 use globset::{Candidate, GlobBuilder, GlobMatcher};
+#[cfg(not(target_os = "wasi"))]
 use once_cell::sync::Lazy;
 
 use crate::error::Result;

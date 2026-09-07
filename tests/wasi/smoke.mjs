@@ -4,28 +4,38 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WASI } from 'node:wasi';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const module = await WebAssembly.compile(fs.readFileSync(process.argv[2]));
+// Model real CLI invocations with one WASI instance per host process. Besides
+// bounding memory, this avoids the Node 22 crash observed after repeatedly
+// creating and exiting WASI instances in the same process.
+if (process.argv[3] === '--case') {
+    const { args, env, root } = JSON.parse(process.argv[4]);
+    const wasi = new WASI({ version: 'preview1', args, env, preopens: { '/': root }, returnOnExit: true });
+    const module = await WebAssembly.compile(fs.readFileSync(process.argv[2]));
+    const instance = await WebAssembly.instantiate(module, wasi.getImportObject());
+    process.exit(wasi.start(instance));
+}
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bat-wasi-'));
 let checks = 0;
 let invocation = 0;
 function run(args, { stdin = '', env = {}, config = false, circular = false } = {}) {
+    console.log(`WASI invocation ${invocation}: ${args.join(" ")}`);
     const prefix = path.join(root, `run-${invocation++}`);
     fs.writeFileSync(`${prefix}.in`, stdin);
     const input = fs.openSync(`${prefix}.in`, 'r');
     const output = fs.openSync(circular ? `${prefix}.in` : `${prefix}.out`, circular ? 'a' : 'w');
     const error = fs.openSync(`${prefix}.err`, 'w');
     try {
-        const wasi = new WASI({
-            version: 'preview1',
+        const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), process.argv[2], '--case', JSON.stringify({
             args: ['bat', ...(config ? [] : ['--no-config']), ...args],
             env: { TERM: 'xterm-256color', ...env },
-            preopens: { '/': root },
-            stdin: input, stdout: output, stderr: error,
-            returnOnExit: true,
-        });
-        const instance = new WebAssembly.Instance(module, wasi.getImportObject());
-        const code = wasi.start(instance);
+            root,
+        })], { stdio: [input, output, error], timeout: 30000 });
+        assert.equal(result.signal, null, `WASI host terminated with ${result.signal}`);
+        if (result.error) throw result.error;
+        const code = result.status;
         return {
             code,
             stdout: fs.readFileSync(circular ? `${prefix}.in` : `${prefix}.out`, 'utf8'),
