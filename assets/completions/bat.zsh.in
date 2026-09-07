@@ -13,6 +13,7 @@ _{{PROJECT_EXECUTABLE}}_cache_subcommand() {
         --source='[specify directory to load syntaxes and themes from]:directory:_files -/'
         --target='[specify directory to store the cached syntax and theme set in]:directory:_files -/'
         --blank'[create completely new syntax and theme sets]'
+        --automatic'[automatically rebuild custom assets when sources or bat change]'
         --acknowledgements'[build acknowledgements.bin]'
         '(: -)'{-h,--help}'[show help information]'
     )

@@ -267,4 +267,7 @@ complete -c $bat -s h -d "Print a concise overview of $bat-cache help" -n __bat_
 
 complete -c $bat -l help -f -d "Print all $bat-cache help" -n __bat_cache_no_excl
 
+
+complete -c $bat -l automatic -f -d "Automatically rebuild custom assets" -n "__bat_cache_subcommand; and not __fish_seen_argument -l clear"
+
 # vim:ft=fish

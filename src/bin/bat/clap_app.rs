@@ -775,6 +775,13 @@ pub fn build_app(interactive_output: bool) -> Command {
                         ),
                 )
                 .arg(
+                    Arg::new("automatic")
+                        .long("automatic")
+                        .action(ArgAction::SetTrue)
+                        .requires("build")
+                        .help("Rebuild these custom assets automatically when their sources or bat change."),
+                )
+                .arg(
                     Arg::new("clear")
                         .long("clear")
                         .short('c')

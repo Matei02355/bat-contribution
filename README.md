@@ -577,6 +577,19 @@ syntax:
    bat cache --build
    ```
 
+   To rebuild automatically after changing these source files or upgrading `bat`, use
+   `bat cache --build --automatic` instead. This opt-in mode records the source
+   directory and build options, then checks source contents on each invocation.
+   It follows source symlinks, so their targets must remain accessible. Keep the
+   source directory limited to your asset files to avoid unnecessary reads.
+
+   Rebuilds run locally, without downloading anything. A failed rebuild reports
+   an error and preserves the existing caches. Separate cache generations let
+   versions of `bat` coexist, while the explicit cache remains available to library
+   clients. `bat cache --clear` removes these generations. Run `bat cache --build`
+   without `--automatic` to return to manual updates, or use `--no-custom-assets`
+   to bypass custom assets for one invocation.
+
 3. Finally, use `bat --list-languages` to check if the new languages are available.
 
    If you ever want to go back to the default settings, call:
