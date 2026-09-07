@@ -35,7 +35,7 @@ minimal-application = [
 git = ["gix"] # Support indicating git modifications
 paging = [ "shell-words", "grep-cli", "minus"] # Support applying a pager on the output
 lessopen = ["execute"] # Support $LESSOPEN preprocessor
-build-assets = ["syntect/yaml-load", "syntect/plist-load", "walkdir", "serde_json"]
+build-assets = ["syntect/yaml-load", "syntect/plist-load", "walkdir", "serde_json", "tempfile"]
 
 # You need to use one of these if you depend on bat as a library:
 regex-onig = ["syntect/regex-onig"] # Use the "oniguruma" regex engine
@@ -71,6 +71,7 @@ etcetera = { version = "0.11.0", optional = true }
 grep-cli = { version = "0.1.12", optional = true }
 regex = "1.12.3"
 walkdir = { version = "2.5", optional = true }
+tempfile = { version = "3.27.0", optional = true }
 bytesize = { version = "2.3.1" }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 encoding_rs = "0.8.35"

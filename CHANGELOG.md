@@ -69,6 +69,10 @@
 - Add symbols, period, and binary notations for non-printable characters, plus the `-c` shortcut, see #3963 (@Matei02355)
 - Support inclusive line/character regions with `--highlight-line L.C:L.C`, see #3964 (@Matei02355)
 - Add `--process` to stream each input through a command while retaining its filename and syntax, see #3967 (@Matei02355)
+- Highlight xxd, canonical hexdump, and HexViewer output, see #3976 (@Matei02355)
+- Highlight Markdown alert and callout headings, see #3977 (@Matei02355)
+- Opt into automatic rebuilding of custom assets after source or version changes with `bat cache --build --automatic`, see #3979 (@Matei02355)
+- Add `--grayscale` and `PrettyPrinter::grayscale()` to use any theme with neutral colors, see #3980 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)
@@ -101,6 +105,7 @@
 
 - Wrap colored headers using terminal display width and preserve their styling, see #3918 (@Matei02355)
 - Display simple mapped extensions consistently in language listings and avoid duplicates, see #3966 (@Matei02355)
+- Handle Bash alias option delimiters and punctuation in alias names, see #3978 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)
@@ -170,6 +175,7 @@
 - Add syntax mapping for DNF repo configuration files, see #3814 (@injust)
 
 ## Themes
+- Color Markdown table separators and header rules in Monokai Extended, see #3948 (@Matei02355)
 
 - Remove the Visual Studio Dark+ theme, see #3552 (@CosmicHorrorDev)
 

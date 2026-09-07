@@ -139,6 +139,7 @@ impl App {
             .map(|args| args.cloned().collect())
             .unwrap_or_default();
 
+        let grayscale = matches.get_flag("grayscale");
         let mut cmd = clap_app::build_app(interactive_output);
         let help_text = match help_type {
             HelpType::Short => cmd.render_help().to_string(),
@@ -160,6 +161,7 @@ impl App {
             pager_args,
             colored_output: use_color,
             true_color: use_color,
+            grayscale,
             language: if use_color { Some("help") } else { None },
             theme: theme(Self::theme_options_from_matches(matches)).to_string(),
             theme_colors: Self::theme_colors_from_matches(matches)?,
@@ -385,6 +387,7 @@ impl App {
 
         Ok(Config {
             true_color: is_truecolor_terminal(),
+            grayscale: self.matches.get_flag("grayscale"),
             language: self
                 .matches
                 .get_one::<String>("language")

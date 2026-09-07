@@ -602,6 +602,13 @@ pub fn build_app(interactive_output: bool) -> Command {
                 )
         )
         .arg(
+            Arg::new("grayscale")
+                .long("grayscale")
+                .action(ArgAction::SetTrue)
+                .help("Convert generated colors to grayscale.")
+                .long_help("Convert syntax and decoration colors to grayscale. Use a light theme on a light background. Input ANSI sequences and terminal-default colors are preserved; use '--strip-ansi=always' to remove input colors."),
+        )
+        .arg(
             Arg::new("theme")
                 .long("theme")
                 .overrides_with("theme")
@@ -1073,6 +1080,13 @@ pub fn build_app(interactive_output: bool) -> Command {
                             "Initialize (or update) the syntax/theme cache by loading from \
                              the source directory (default: the configuration directory).",
                         ),
+                )
+                .arg(
+                    Arg::new("automatic")
+                        .long("automatic")
+                        .action(ArgAction::SetTrue)
+                        .requires("build")
+                        .help("Rebuild these custom assets automatically when their sources or bat change."),
                 )
                 .arg(
                     Arg::new("clear")

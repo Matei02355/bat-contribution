@@ -1,8 +1,6 @@
-diff --git syntaxes/01_Packages/ShellScript/Bash.sublime-syntax syntaxes/01_Packages/ShellScript/Bash.sublime-syntax
-index e973e319..07c170a7 100644
 --- syntaxes/01_Packages/ShellScript/Bash.sublime-syntax
 +++ syntaxes/01_Packages/ShellScript/Bash.sublime-syntax
-@@ -30,12 +30,12 @@ file_extensions:
+@@ -30,12 +30,12 @@
    - .zshenv
    - .zshrc
    - PKGBUILD  # https://jlk.fjfi.cvut.cz/arch/manpages/man/PKGBUILD.5
@@ -18,3 +16,43 @@ index e973e319..07c170a7 100644
    | ^\# \s* -\*- [^*]* mode: \s* shell-script [^*]* -\*-
  
  #-------------------------------------------------------------------------------
+@@ -341,7 +341,7 @@
+         1: support.function.alias.shell
+       push:
+       - vardef-ensure-function-call-scope
+-      - vardef-maybe-more
++      - vardef-alias-maybe-more
+       - vardef-value
+       - vardef-assign
+       - vardef-alias-name
+@@ -414,8 +414,20 @@
+     - match: (?=\S)
+       push: [vardef-value, vardef-assign, vardef-name]
+ 
++  vardef-alias-maybe-more:
++    - meta_include_prototype: false
++    - match: (?=`|\s*#)
++      pop: true
++    - include: cmd-args-boilerplate
++    - match: (?=\S)
++      push: [vardef-value, vardef-assign, vardef-alias-name]
++
+   vardef-alias-options:
+-    - match: \s*((-)p)
++    - match: \s*(--)(?=\s|$)
++      captures:
++        1: keyword.operator.end-of-options.shell
++      pop: true
++    - match: \s*((-)p)(?=\s|$)
+       captures:
+         2: punctuation.definition.parameter.shell
+         1: variable.parameter.option.shell
+@@ -429,7 +441,7 @@
+         - meta_content_scope: entity.name.function.alias.shell
+         - include: line-continuation-or-pop-at-end
+         - include: any-escape
+-        - match: (?={{varassign}}|\s)|$
++        - match: (?==|\s|[;&`]|{{metachar}})|$
+           pop: true
+         - include: array
+         - match: \s*$

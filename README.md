@@ -598,6 +598,18 @@ By default, `bat` only shows decorations (such as line numbers, file headers, gr
 
 There is also the `--force-colorization` option, which is an alias for `--decorations=always --color=always`. This is useful if you want to keep colorization and decorations when piping `bat`'s output to another program.
 
+### Grayscale colors
+
+Use `bat --grayscale --theme=gruvbox-light file.rs` for syntax highlighting in
+shades of gray on a light background. The option works with any theme and also
+converts decoration, Git marker, and highlighted-line colors. Bold, italics, and
+underlines are preserved. It supports both true-color and 256-color terminals.
+
+Colors already present in input ANSI sequences are preserved; add
+`--strip-ansi=always` to remove them. Terminal-default foreground and background
+colors remain controlled by your terminal. `--grayscale` does not force color
+output when it would otherwise be disabled.
+
 ### Adding new syntaxes / language definitions
 
 Should you find that a particular syntax is not available within `bat`, you can follow these
@@ -627,6 +639,19 @@ syntax:
    ```bash
    bat cache --build
    ```
+
+   To rebuild automatically after changing these source files or upgrading `bat`, use
+   `bat cache --build --automatic` instead. This opt-in mode records the source
+   directory and build options, then checks source contents on each invocation.
+   It follows source symlinks, so their targets must remain accessible. Keep the
+   source directory limited to your asset files to avoid unnecessary reads.
+
+   Rebuilds run locally, without downloading anything. A failed rebuild reports
+   an error and preserves the existing caches. Separate cache generations let
+   versions of `bat` coexist, while the explicit cache remains available to library
+   clients. `bat cache --clear` removes these generations. Run `bat cache --build`
+   without `--automatic` to return to manual updates, or use `--no-custom-assets`
+   to bypass custom assets for one invocation.
 
 3. Finally, use `bat --list-languages` to check if the new languages are available.
 

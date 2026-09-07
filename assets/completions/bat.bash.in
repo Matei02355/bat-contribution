@@ -71,6 +71,7 @@ _bat() {
 			--source
 			--target
 			--blank
+			--automatic
 			--help
 		" -- "$cur"))
 		return 0
@@ -246,6 +247,7 @@ _bat() {
 			--terminal-width
 			--number
 			--color
+			--grayscale
 			--italic-text
 			--theme-background
 			--decorations

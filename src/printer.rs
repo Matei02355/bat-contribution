@@ -36,7 +36,7 @@ use crate::preprocessor::{
     sanitize_for_terminal, strip_ansi, strip_overstrike,
 };
 use crate::style::StyleComponent;
-use crate::terminal::{as_terminal_escaped, to_ansi_color};
+use crate::terminal::{as_terminal_escaped, to_ansi_color_filtered};
 use crate::vscreen::{AnsiStyle, EscapeSequence, EscapeSequenceIterator};
 use crate::wrapping::WrappingMode;
 use crate::BinaryBehavior;
@@ -331,7 +331,7 @@ impl<'a> InteractivePrinter<'a> {
             .filter(|_| config.colored_output);
 
         let colors = if config.colored_output {
-            Colors::colored(theme, config.true_color)
+            Colors::colored(theme, config.true_color, config.grayscale)
         } else {
             Colors::plain()
         };
@@ -732,6 +732,7 @@ impl<'a> InteractivePrinter<'a> {
                                 self.config.colored_output,
                                 self.config.use_italic_text,
                                 region_background,
+                                self.config.grayscale,
                             ),
                             self.ansi_style.to_reset_sequence(),
                         )?;
@@ -751,8 +752,9 @@ impl<'a> InteractivePrinter<'a> {
         if self.config.colored_output {
             marker_style = marker_style.bold();
         }
-        marker_style.background =
-            background_color.and_then(|color| to_ansi_color(color, self.config.true_color));
+        marker_style.background = background_color.and_then(|color| {
+            to_ansi_color_filtered(color, self.config.true_color, self.config.grayscale)
+        });
         if truncated && width > 0 {
             write!(
                 handle,
@@ -1227,7 +1229,8 @@ impl Printer for InteractivePrinter<'_> {
                                     true_color,
                                     colored_output,
                                     italics,
-                                    region_background
+                                    region_background,
+                                    self.config.grayscale
                                 ),
                                 self.ansi_style.to_reset_sequence(),
                             )?;
@@ -1236,7 +1239,11 @@ impl Printer for InteractivePrinter<'_> {
                             if text.len() != text_trimmed.len() {
                                 if let Some(background_color) = background_color {
                                     let ansi_style = Style {
-                                        background: to_ansi_color(background_color, true_color),
+                                        background: to_ansi_color_filtered(
+                                            background_color,
+                                            true_color,
+                                            self.config.grayscale,
+                                        ),
                                         ..Default::default()
                                     };
 
@@ -1356,7 +1363,8 @@ impl Printer for InteractivePrinter<'_> {
                                             self.config.true_color,
                                             self.config.colored_output,
                                             self.config.use_italic_text,
-                                            region_background
+                                            region_background,
+                                            self.config.grayscale
                                         ),
                                         self.ansi_style.to_reset_sequence(),
                                         panel_wrap.clone().unwrap()
@@ -1394,7 +1402,8 @@ impl Printer for InteractivePrinter<'_> {
                                     self.config.true_color,
                                     self.config.colored_output,
                                     self.config.use_italic_text,
-                                    region_background
+                                    region_background,
+                                    self.config.grayscale
                                 )
                             )?;
                         }
@@ -1410,7 +1419,11 @@ impl Printer for InteractivePrinter<'_> {
 
             if let Some(background_color) = background_color {
                 let ansi_style = Style {
-                    background: to_ansi_color(background_color, self.config.true_color),
+                    background: to_ansi_color_filtered(
+                        background_color,
+                        self.config.true_color,
+                        self.config.grayscale,
+                    ),
                     ..Default::default()
                 };
 
@@ -1450,27 +1463,43 @@ impl Colors {
         Colors::default()
     }
 
-    fn colored(theme: &Theme, true_color: bool) -> Self {
+    fn colored(theme: &Theme, true_color: bool, grayscale: bool) -> Self {
         let gutter_style = Style {
             foreground: match theme.settings.gutter_foreground {
                 // If the theme provides a gutter foreground color, use it.
                 // Note: It might be the special value #00000001, in which case
                 // to_ansi_color returns None and we use an empty Style
                 // (resulting in the terminal's default foreground color).
-                Some(c) => to_ansi_color(c, true_color),
+                Some(c) => to_ansi_color_filtered(c, true_color, grayscale),
                 // Otherwise, use a specific fallback color.
                 None => Some(Fixed(DEFAULT_GUTTER_COLOR)),
             },
             ..Style::default()
         };
 
+        let git_color = |index, fallback: nu_ansi_term::Color| {
+            if grayscale {
+                let color = Color {
+                    r: index,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                };
+                Style {
+                    foreground: to_ansi_color_filtered(color, true_color, true),
+                    ..Style::default()
+                }
+            } else {
+                fallback.normal()
+            }
+        };
         Colors {
             grid: gutter_style,
             rule: gutter_style,
             header_value: Style::new().bold(),
-            git_added: Green.normal(),
-            git_removed: Red.normal(),
-            git_modified: Yellow.normal(),
+            git_added: git_color(2, Green),
+            git_removed: git_color(1, Red),
+            git_modified: git_color(3, Yellow),
             line_number: gutter_style,
         }
     }
@@ -1522,5 +1551,22 @@ fn permission_display_includes_special_mode_bits() {
             format_permissions(&std::fs::Permissions::from_mode(mode)),
             expected
         );
+    }
+}
+
+#[cfg(test)]
+mod grayscale_decoration_tests {
+    use super::*;
+
+    #[test]
+    fn git_markers_use_neutral_colors_in_grayscale_mode() {
+        let colors = Colors::colored(&Theme::default(), true, true);
+        for style in [colors.git_added, colors.git_removed, colors.git_modified] {
+            let Some(nu_ansi_term::Color::Rgb(r, g, b)) = style.foreground else {
+                panic!("expected an RGB shade");
+            };
+            assert_eq!(r, g);
+            assert_eq!(g, b);
+        }
     }
 }

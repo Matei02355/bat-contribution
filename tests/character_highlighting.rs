@@ -224,3 +224,39 @@ fn character_regions_select_indicator_rows_without_highlighting_whole_lines() {
         .success()
         .stdout("  one\n> two\n  three\n");
 }
+
+#[test]
+fn grayscale_preserves_character_selection_and_native_theme_backgrounds() {
+    let colors = regex::Regex::new(r"(?:38|48);2;(\d+);(\d+);(\d+)").unwrap();
+    let gray_highlight = regex::Regex::new(r"\x1b\[48;2;73;73;73;[0-9;]*m([^\x1b]*)").unwrap();
+    for wrap in ["character", "word", "never", "truncate"] {
+        let text = output(
+            "abcdef\n",
+            &[
+                "-H",
+                "1.2:.4",
+                "--terminal-width=4",
+                "--wrap",
+                wrap,
+                "--theme-background=always",
+                "--grayscale",
+                "--set-theme-color",
+                "lineHighlight",
+                "#ff00ff",
+            ],
+        );
+        let selected = gray_highlight
+            .captures_iter(&text)
+            .map(|c| c[1].to_owned())
+            .collect::<String>();
+        assert_eq!(
+            selected,
+            if wrap == "truncate" { "bc" } else { "bcd" },
+            "{wrap}: {text:?}"
+        );
+        for color in colors.captures_iter(&text) {
+            assert_eq!(&color[1], &color[2]);
+            assert_eq!(&color[2], &color[3]);
+        }
+    }
+}
