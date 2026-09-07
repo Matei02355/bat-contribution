@@ -673,7 +673,7 @@ impl App {
         let mut styles: Vec<(String, StyleComponents)> = Vec::new();
         if let Some(values) = self.matches.get_many::<String>("style-for") {
             let values: Vec<_> = values.collect();
-            for pair in values.chunks_exact(2) {
+            for pair in values.as_chunks::<2>().0 {
                 let language = pair[0];
                 if language.is_empty() {
                     return Err("The language for --style-for cannot be empty".into());
