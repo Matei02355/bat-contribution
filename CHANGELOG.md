@@ -9,6 +9,8 @@
 
 ## Features
 
+- Add a `trailing_whitespace` utility syntax to highlight trailing spaces and tabs with theme backgrounds. Closes #2249, see #3924 (@Matei02355)
+
 - Add `--show-config [field]` to inspect merged configuration arguments, see #3955 (@Matei02355)
 
 - Add `--decorations=compact` for compact file headings while retaining selected line numbers and sidebars, see #3952 (@Matei02355)
@@ -49,6 +51,9 @@
 - Add `--wrap=truncate` to shorten long lines with an ellipsis, see #3923 (@Matei02355)
 
 - Add opt-in theme background colors through `--theme-background`, see #3924 (@Matei02355)
+- Detect syntax from a regular file redirected to stdin on Linux and Android, see #3959 (@Matei02355)
+- Add `--style-for <language> <style>` and a library setter for per-syntax decorations, see #3960 (@Matei02355)
+- Support GNOME color scheme preferences on Linux with `--theme auto:system`, see #3961 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)

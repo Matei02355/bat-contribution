@@ -77,6 +77,9 @@ pub struct Config<'a> {
 
     /// Use single-line file headings and omit horizontal header/footer rules.
     pub compact_headers: bool,
+    /// Per-syntax decorations, keyed by the full syntax name (case insensitive).
+    /// Later entries take precedence. Wrapping and tab settings remain global.
+    pub styles_for_syntax: Vec<(String, StyleComponents)>,
 
     /// If and how text should be wrapped
     pub wrapping_mode: WrappingMode,

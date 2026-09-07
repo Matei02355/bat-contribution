@@ -65,13 +65,22 @@ Display multiple files at once
 bat src/*.rs
 ```
 
-Read from stdin, determine the syntax automatically (note, highlighting will
-only work if the syntax can be determined from the first line of the file,
-usually through a shebang such as `#!/bin/sh`)
+Read from stdin and determine the syntax from the first line, usually through
+a shebang such as `#!/bin/sh`:
 
 ```bash
 curl -s https://sh.rustup.rs | bat
 ```
+
+On Linux and Android, redirecting a regular file into stdin also uses that
+file's path for syntax detection when procfs is available:
+
+```bash
+bat < README.md
+```
+
+An explicit `--file-name` or `--language` takes precedence. If the path cannot
+be recovered, detection falls back to the input's first line.
 
 Read from stdin, specify the language explicitly
 
@@ -726,41 +735,30 @@ sidebar. Calling `bat` with `--tabs=0` will override it and let tabs be consumed
 
 ### Dark mode
 
-If you make use of the dark mode feature in **macOS**, you might want to configure `bat` to use a different
-theme based on the OS theme. The following snippet uses the `default` theme when in the _dark mode_
-and the `GitHub` theme when in the _light mode_.
+On **macOS** and **GNOME on Linux**, `bat` can choose a theme based on the system's
+light or dark preference. The following example uses `default` in dark mode and
+`GitHub` in light mode:
 
 ```bash
 alias cat="bat --theme auto:system --theme-dark default --theme-light GitHub"
 ```
 
-The same dark mode feature is now available in **GNOME** and affects the `org.gnome.desktop.interface color-scheme` setting. The following code converts the above to use said setting.
+On Linux, this queries `org.gnome.desktop.interface color-scheme` using
+`gsettings`. The values `prefer-dark` and `prefer-light` select the respective
+theme. If `gsettings` is unavailable, the query times out, or the setting is
+`default` (no preference), `bat` uses its default theme. Ordinary `--theme auto`
+continues to detect the terminal's colors.
 
-```bash
-# .bashrc
-sys_color_scheme_is_dark() {
-    condition=$(gsettings get org.gnome.desktop.interface color-scheme)
-    condition=$(echo "$condition" | tr -d "[:space:]'")
-    if [ $condition == "prefer-dark" ]; then
-        return 0
-    else
-        return 1
-    fi
-}
 
-bat_alias_wrapper() {
-    #get color scheme
-    sys_color_scheme_is_dark
-    if [[ $? -eq 0 ]]; then
-        # bat command with dark color scheme
-        bat --theme=default "$@"
-    else
-        # bat command with light color scheme
-        bat --theme=GitHub "$@"
-    fi
-}
-alias cat='bat_alias_wrapper'
-```
+### Inspect trailing whitespace
+
+Use `bat --language=trailing_whitespace --theme-background=always --tabs=4 file`
+to highlight trailing spaces and tabs without language-specific highlighting.
+This utility syntax leaves
+leading and internal whitespace unmarked and handles both LF and CRLF endings.
+The chosen theme controls the error highlight; `--theme='Monokai Extended'` gives
+trailing whitespace a visible background. `bat -A` remains useful for displaying
+all non-printable characters.
 
 
 ## Configuration file

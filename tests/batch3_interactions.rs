@@ -90,3 +90,68 @@ fn compact_headers_keep_links_and_selected_metadata() {
     assert!(text.contains("abcd\n"), "{text:?}");
     assert!(!text.contains('─'), "{text:?}");
 }
+
+#[test]
+fn syntax_styles_preserve_theme_overrides_and_byte_limits() {
+    let out = bat()
+        .env("COLORTERM", "truecolor")
+        .args([
+            "--color=always",
+            "--decorations=compact",
+            "--paging=never",
+            "--theme=Monokai Extended",
+            "--language=JSON",
+            "--style=plain",
+            "--style-for",
+            "JSON",
+            "header,numbers",
+            "--set-theme-color",
+            "foreground",
+            "123456",
+            "--max-bytes=2",
+        ])
+        .write_stdin("{}extra\n")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("===>"), "{text:?}");
+    assert!(text.contains("38;2;18;52;86m"), "{text:?}");
+    let plain = regex::Regex::new(r"\x1b\[[0-9;]*m")
+        .unwrap()
+        .replace_all(&text, "");
+    assert!(plain.contains("{}"), "{text:?}");
+    assert!(!text.contains("extra"), "{text:?}");
+}
+
+#[test]
+fn syntax_styles_preserve_regex_highlight_indicators() {
+    let output = |style_options: &[&str]| {
+        bat()
+            .args([
+                "--color=never",
+                "--decorations=always",
+                "--paging=never",
+                "--language=JSON",
+                "--highlight-pattern=match",
+            ])
+            .args(style_options)
+            .write_stdin("{\"match\": 1}\n{}\n")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+    assert_eq!(
+        output(&["--style=highlight-indicator,numbers"]),
+        output(&[
+            "--style=plain",
+            "--style-for",
+            "JSON",
+            "highlight-indicator,numbers"
+        ])
+    );
+}

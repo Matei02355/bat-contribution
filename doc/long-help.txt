@@ -219,7 +219,8 @@ Options:
             * auto: Picks a dark or light theme depending on the terminal's colors (default).
                     Use '--theme-light' and '--theme-dark' to customize the selected theme.
               * auto:always: Detect the terminal's colors even when the output is redirected.
-              * auto:system: Detect the color scheme from the system-wide preference (macOS only).
+              * auto:system: Detect the color scheme from the system-wide preference (macOS or GNOME
+              on Linux).
             * dark: Use the dark theme specified by '--theme-dark'.
             * light: Use the light theme specified by '--theme-light'.
 
@@ -262,6 +263,13 @@ Options:
           Unicode replacement character (U+FFFD). Tab, LF, FF, and CRLF pass through. Useful for
           displaying untrusted file content (e.g. file-manager preview panes). Possible values:
           auto, always, *never*.
+
+      --style-for <language> <style>
+          Use different decorations for a syntax, for example '--style-for "Git Log" plain'. Use a
+          full name from '--list-languages'; names are matched case-insensitively. Repeat to
+          configure more syntaxes. Styles containing only '+'/'-' modifiers start from the general
+          style. Plain/number flags and '--decorations=never' take precedence. Wrapping and tab
+          settings remain global. This option can be used in the configuration file.
 
       --style <components>
           Configure which elements (line numbers, file headers, grid borders, Git modifications, ..)

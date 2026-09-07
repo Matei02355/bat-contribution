@@ -590,7 +590,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                      * auto: Picks a dark or light theme depending on the terminal's colors (default).\n          \
                      Use '--theme-light' and '--theme-dark' to customize the selected theme.\n    \
                      * auto:always: Detect the terminal's colors even when the output is redirected.\n    \
-                     * auto:system: Detect the color scheme from the system-wide preference (macOS only).\n  \
+                     * auto:system: Detect the color scheme from the system-wide preference (macOS or GNOME on Linux).\n  \
                      * dark: Use the dark theme specified by '--theme-dark'.\n  \
                      * light: Use the light theme specified by '--theme-light'.",
                 ),
@@ -685,6 +685,22 @@ pub fn build_app(interactive_output: bool) -> Command {
                 for displaying untrusted file content (e.g. file-manager preview panes). \
                 Possible values: auto, always, *never*.")
                 .hide_short_help(true)
+        )
+        .arg(
+            Arg::new("style-for")
+                .long("style-for")
+                .num_args(2)
+                .value_names(["language", "style"])
+                .allow_hyphen_values(true)
+                .action(ArgAction::Append)
+                .hide_short_help(true)
+                .help("Use different decorations for a syntax.")
+                .long_help("Use different decorations for a syntax, for example \
+                    '--style-for \"Git Log\" plain'. Use a full name from '--list-languages'; \
+                    names are matched case-insensitively. Repeat to configure more syntaxes. \
+                    Styles containing only '+'/'-' modifiers start from the general style. \
+                    Plain/number flags and '--decorations=never' take precedence. \
+                    Wrapping and tab settings remain global. This option can be used in the configuration file."),
         )
         .arg(
             Arg::new("style")

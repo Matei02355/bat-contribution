@@ -227,8 +227,10 @@ Picks a dark or light theme depending on the terminal's colors.
 Use \fB-\-theme\-light\fR and \fB-\-theme\-dark\fR to customize the selected theme.
 .IP "auto:always"
 Variation of \fBauto\fR where where the terminal's colors are detected even when the output is redirected.
-.IP "auto:system (macOS only)"
+.IP "auto:system (macOS or GNOME on Linux)"
 Variation of \fBauto\fR where the color scheme is detected from the system-wide preference instead.
+On Linux, queries GNOME's color-scheme setting using gsettings.
+If the setting is unavailable or expresses no preference, uses the default theme.
 .IP "dark"
 Use the dark theme specified by \fB-\-theme-dark\fR.
 .IP "light"
@@ -317,6 +319,16 @@ streams without newlines. Zero reads no content. The limit may split a multibyte
 character. Binary detection and formatting still apply; use '\-\-binary=as-text'
 to display binary bytes. With LESSOPEN, the limit applies to preprocessor output
 and does not bound the preprocessor's own reads.
+.HP
+\fB\-\-style\-for\fR <language> <style\-components>
+.IP
+Select decorations for a full syntax name from '\-\-list\-languages', matched
+case\-insensitively. For example, '\-\-style\-for "Git Log" plain' removes
+decorations from Git logs. Repeat this option to configure more syntaxes.
+Lists containing only '+' or '\-' modifiers build on the general style;
+repeated entries for the same syntax are applied in order. Plain/number flags
+and '\-\-decorations=never' take precedence. Wrapping and tab settings remain
+global. This option can also be used in the configuration file.
 .HP
 \fB\-r\fR, \fB\-\-line\-range\fR <N:M>...
 .IP
