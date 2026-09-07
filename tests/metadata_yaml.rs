@@ -15,7 +15,16 @@ fn metadata_written_with_the_previous_serializer_remains_compatible() {
     assert!(metadata.is_compatible_with("0.26.9"));
     assert!(!metadata.is_compatible_with("0.27.0"));
     let serialized = serde_yaml::to_string(&metadata).unwrap();
-    let original: serde_yaml::Value = serde_yaml::from_str(LEGACY_METADATA).unwrap();
+    let mut original: serde_yaml::Value = serde_yaml::from_str(LEGACY_METADATA).unwrap();
+    // SystemTime has platform-dependent precision (100 ns on Windows).
+    // Reading an old cache must preserve the instant at that native precision.
+    let timestamp = std::time::UNIX_EPOCH + std::time::Duration::new(1700000000, 123456789);
+    original["creation_time"]["nanos_since_epoch"] = serde_yaml::Value::from(
+        timestamp
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos(),
+    );
     let restored: serde_yaml::Value = serde_yaml::from_str(&serialized).unwrap();
     assert_eq!(restored, original);
 }
