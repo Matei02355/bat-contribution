@@ -745,6 +745,24 @@ alias cat='bat_alias_wrapper'
 ```
 
 
+### Processing inputs
+
+Use `--process` to run a formatter or filter for each file while keeping its
+filename and syntax highlighting:
+
+```bash
+bat --process "python -m json.tool" first.json second.json
+printf '{"answer":42}\n' | bat --process "python -m json.tool" --language=json
+```
+
+Each command reads one input from standard input. Its output is streamed into
+bat, so filters can produce large outputs without buffering the entire result.
+Arguments support shell-style quoting; pipes, redirections and variable
+expansion require an explicit shell command. A process failure makes bat fail,
+and process diagnostics go to standard error. Line numbers, line ranges and
+highlights refer to the processed text. Git change markers are omitted;
+`--diff` and `--lessopen` cannot be combined with `--process`.
+
 ## Configuration file
 
 `bat` can also be customized with a configuration file. The location of the file is dependent
