@@ -71,7 +71,7 @@
 
 ## Syntaxes
 
-- Add Pug syntax highlighting, see #0 (@Matei02355)
+- Add Pug syntax highlighting, see #3956 (@Matei02355)
 
 - Add shebang-based detection for Tcl (`tclsh`, `wish`) and Expect (`expect`) scripts, see #3647 (@mvanhorn)
 - Change the URL of Zig submodule from GitHub to Codeberg, see #3519 (@sorairolake)
