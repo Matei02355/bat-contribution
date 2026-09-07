@@ -1,7 +1,12 @@
---- syntaxes/01_Packages/Git Formats/Git Log.sublime-syntax	
-+++ syntaxes/01_Packages/Git Formats/Git Log.sublime-syntax	
-@@ -13,7 +13,7 @@
+--- syntaxes/01_Packages/Git Formats/Git Log.sublime-syntax	1970-01-01 00:00:00 +0000
++++ syntaxes/01_Packages/Git Formats/Git Log.sublime-syntax	1970-01-01 00:00:00 +0000
+@@ -11,17 +11,43 @@
+     - include: Git Common.sublime-syntax#comments-line
+
    main:
++    - match: '^(?=diff --(?:git|cc|combined) )'
++      embed: scope:source.diff
++      escape: '(?=^commit\s+\h{7,})'
      # 1st header line
      # commit d9d9fb804f5d61c13ba2f8746af33a9f3c609075
 -    - match: (?:(commit)\s+(\h{7,}))?\s*\n
@@ -9,9 +14,11 @@
        scope: meta.header.git.commit markup.raw.block.git.log
        captures:
          1: keyword.other.commit.git.log
-@@ -22,6 +22,29 @@
-       escape: (?=^commit\s)
- 
+         2: constant.other.hash.git.log
+       embed: commit-header
+-      escape: (?=^commit\s)
++      escape: (?=^(?:commit|diff)\s)
+
    commit-header:
 +    - match: \(
 +      scope: punctuation.section.parens.begin.git.log
