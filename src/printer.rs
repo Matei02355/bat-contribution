@@ -5,7 +5,7 @@ use nu_ansi_term::Style;
 
 use bytesize::ByteSize;
 
-use syntect::easy::HighlightLines;
+use crate::comment_annotations::LineHighlighter;
 use syntect::highlighting::Color;
 use syntect::highlighting::FontStyle;
 use syntect::highlighting::Theme;
@@ -277,16 +277,20 @@ impl Printer for SimplePrinter<'_> {
 }
 
 struct HighlighterFromSet<'a> {
-    highlighter: HighlightLines<'a>,
+    highlighter: LineHighlighter<'a>,
     syntax_set: &'a SyntaxSet,
     syntax: &'a syntect::parsing::SyntaxReference,
     theme: &'a Theme,
 }
 
 impl<'a> HighlighterFromSet<'a> {
-    fn new(syntax_in_set: SyntaxReferenceInSet<'a>, theme: &'a Theme) -> Self {
+    fn new(
+        syntax_in_set: SyntaxReferenceInSet<'a>,
+        theme: &'a Theme,
+        highlight_todos: bool,
+    ) -> Self {
         Self {
-            highlighter: HighlightLines::new(syntax_in_set.syntax, theme),
+            highlighter: LineHighlighter::new(syntax_in_set.syntax, theme, highlight_todos),
             syntax_set: syntax_in_set.syntax_set,
             syntax: syntax_in_set.syntax,
             theme,
@@ -303,10 +307,14 @@ pub(crate) struct InteractivePrinter<'a> {
     content_type: Option<ContentType>,
     #[cfg(feature = "git")]
     pub line_changes: &'a Option<LineChanges>,
+    #[cfg(feature = "git")]
+    pub source_line: usize,
     highlighter_from_set: Option<HighlighterFromSet<'a>>,
     background_color_highlight: Option<Color>,
     pub(crate) highlight_this_line: bool,
     consecutive_empty_lines: usize,
+    rendered_line: String,
+    path_annotations: Option<crate::path_annotations::PathAnnotations>,
     strip_ansi: bool,
     sanitize: bool,
     strip_overstrike: bool,
@@ -345,6 +353,29 @@ impl<'a> InteractivePrinter<'a> {
                 || !config.highlighted_regions.is_empty())
         {
             decorations.push(Box::new(HighlightIndicatorDecoration));
+        }
+
+        #[cfg(feature = "git")]
+        if config.style_components.blame() {
+            let format = crate::blame::BlameFormat::parse(
+                config.blame_format.unwrap_or(crate::blame::DEFAULT_FORMAT),
+            )?;
+            #[cfg(feature = "lessopen")]
+            let preprocessed = config.use_lessopen;
+            #[cfg(not(feature = "lessopen"))]
+            let preprocessed = false;
+            if !preprocessed && !config.unbuffered {
+                if let crate::input::OpenedInputKind::OrdinaryFile(path) = &input.kind {
+                    if let Some(lines) = crate::blame::get_git_blame(path, &format)? {
+                        let max_width = config.term_width.saturating_sub(14).min(32);
+                        if max_width >= 8 {
+                            decorations.push(Box::new(crate::decorations::BlameDecoration::new(
+                                lines, &colors, max_width,
+                            )));
+                        }
+                    }
+                }
+            }
         }
 
         if config.style_components.numbers() {
@@ -406,7 +437,11 @@ impl<'a> InteractivePrinter<'a> {
                     syntax_in_set.syntax.name == PLAIN_TEXT_SYNTAX,
                     syntax_in_set.syntax.name == MANPAGE_SYNTAX
                         || syntax_in_set.syntax.name == COMMAND_HELP_SYNTAX,
-                    Some(HighlighterFromSet::new(syntax_in_set, theme)),
+                    Some(HighlighterFromSet::new(
+                        syntax_in_set,
+                        theme,
+                        config.highlight_todos,
+                    )),
                 ),
 
                 Err(Error::UndetectedSyntax(_)) => (
@@ -415,7 +450,7 @@ impl<'a> InteractivePrinter<'a> {
                     Some(
                         assets
                             .find_syntax_by_name(PLAIN_TEXT_SYNTAX)?
-                            .map(|s| HighlighterFromSet::new(s, theme))
+                            .map(|s| HighlighterFromSet::new(s, theme, config.highlight_todos))
                             .expect("A plain text syntax is available"),
                     ),
                 ),
@@ -459,10 +494,24 @@ impl<'a> InteractivePrinter<'a> {
             ansi_style: AnsiStyle::new(),
             #[cfg(feature = "git")]
             line_changes,
+            #[cfg(feature = "git")]
+            source_line: 0,
             highlighter_from_set,
             background_color_highlight,
             highlight_this_line: false,
             consecutive_empty_lines: 0,
+            rendered_line: String::new(),
+            path_annotations: if config.show_paths && config.colored_output {
+                let base = match &input.kind {
+                    crate::input::OpenedInputKind::OrdinaryFile(path) => {
+                        crate::path_annotations::base_for_file(path)
+                    }
+                    _ => std::path::PathBuf::from("."),
+                };
+                Some(crate::path_annotations::PathAnnotations::new(base))
+            } else {
+                None
+            },
             strip_ansi,
             sanitize,
             strip_overstrike,
@@ -687,8 +736,11 @@ impl<'a> InteractivePrinter<'a> {
             .as_ref()
             .is_some_and(|delimiter| delimiter.is_match(line.trim_end_matches(['\r', '\n'])))
         {
-            highlighter_from_set.highlighter =
-                HighlightLines::new(highlighter_from_set.syntax, highlighter_from_set.theme);
+            highlighter_from_set.highlighter = LineHighlighter::new(
+                highlighter_from_set.syntax,
+                highlighter_from_set.theme,
+                self.config.highlight_todos,
+            );
         }
 
         // skip syntax highlighting on long lines
@@ -981,7 +1033,11 @@ impl Printer for InteractivePrinter<'_> {
                 StyleComponent::HeaderPath => {
                     let path = match &input.kind {
                         crate::input::OpenedInputKind::OrdinaryFile(path) => {
-                            path_abs::PathAbs::new(path)
+                            #[cfg(not(target_os = "wasi"))]
+                            let absolute = path_abs::PathAbs::new(path);
+                            #[cfg(target_os = "wasi")]
+                            let absolute = std::path::absolute(path);
+                            absolute
                                 .ok()
                                 .map(|path| path.as_path().to_string_lossy().into_owned())
                         }
@@ -1107,7 +1163,47 @@ impl Printer for InteractivePrinter<'_> {
         line_buffer: &[u8],
         max_buffered_line_number: MaxBufferedLineNumber,
     ) -> Result<()> {
+        // Submit each rendered source line together. In particular, a pager pipe
+        // must not receive a separate write for every ANSI segment or sidebar cell.
+        // Unbuffered input still calls this once per available input fragment.
+        let mut rendered = std::mem::take(&mut self.rendered_line);
+        rendered.clear();
+        let result = self.render_line(
+            out_of_range,
+            &mut OutputHandle::FmtWrite(&mut rendered),
+            line_number,
+            line_buffer,
+            max_buffered_line_number,
+        );
+        let written = if rendered.is_empty() {
+            Ok(())
+        } else {
+            handle.write_fmt(format_args!("{rendered}"))
+        };
+        // Keep the common buffer but release oversized allocations after a long
+        // line, instead of retaining them until the entire file has been printed.
+        if rendered.capacity() <= 64 * 1024 {
+            self.rendered_line = rendered;
+        }
+        written?;
+        result
+    }
+}
+
+impl InteractivePrinter<'_> {
+    fn render_line(
+        &mut self,
+        out_of_range: bool,
+        handle: &mut OutputHandle,
+        line_number: usize,
+        line_buffer: &[u8],
+        max_buffered_line_number: MaxBufferedLineNumber,
+    ) -> Result<()> {
         let mut replacement_ranges = Vec::new();
+        #[cfg(feature = "git")]
+        {
+            self.source_line += 1;
+        }
         let line = if self.config.show_nonprintable {
             let (text, ranges) = replace_nonprintable_with_ranges(
                 line_buffer,
@@ -1194,6 +1290,12 @@ impl Printer for InteractivePrinter<'_> {
                 self.consecutive_empty_lines = 0;
             }
         }
+
+        let mut regions = if let Some(annotations) = &mut self.path_annotations {
+            annotations.highlight(&line, regions)
+        } else {
+            regions
+        };
 
         let mut cursor: usize = 0;
         let mut cursor_max: usize = self.config.term_width;

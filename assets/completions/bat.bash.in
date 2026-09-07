@@ -96,7 +96,10 @@ _bat() {
 		;;
 	--scroll-to | \
 	-H | --highlight-line | --highlight-pattern | --syntax-delimiter | --hyperlink-format | \
+	-W | --function-context | \
 	--diff-context | \
+	--blame-format | \
+	--paging-reserve | \
 	--tabs | \
 	--terminal-width | \
 	-m | --map-syntax | \
@@ -197,6 +200,7 @@ _bat() {
 			plain
 			changes
 			changes-highlight
+			blame
 			header
 			header-filename
 			header-filesize
@@ -234,13 +238,19 @@ _bat() {
 			--warning
 			--plain
 			--language
+			--show-paths
 			--highlight-line
 			--highlight-pattern
 			--syntax-delimiter
+			--highlight-todos
+			--function-context
+			--fold
 			--file-name
 			--osc8
 			--osc8-highlight
 			--hyperlink-format
+			--blame
+			--blame-format
 			--diff
 			--diff-context
 			--tabs
@@ -258,6 +268,7 @@ _bat() {
 			--center-highlight
 			--literal-file-names
 			--paging
+			--paging-reserve
 			--no-paging
 			--pager
 			--pager-arg=

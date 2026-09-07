@@ -3,6 +3,7 @@ use std::env;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+#[cfg(not(target_os = "wasi"))]
 use std::thread::available_parallelism;
 
 use crate::{
@@ -314,7 +315,18 @@ impl App {
     }
 
     pub fn config(&self, inputs: &[Input]) -> Result<Config<'_>> {
-        let style_components = self.style_components(inputs)?;
+        #[allow(unused_mut)]
+        let mut style_components = self.style_components(inputs)?;
+        #[cfg(feature = "git")]
+        if self.matches.get_flag("blame")
+            && self
+                .matches
+                .get_one::<String>("decorations")
+                .map(String::as_str)
+                != Some("never")
+        {
+            style_components.insert(StyleComponent::Blame);
+        }
 
         let extra_plain = self.matches.get_count("plain") > 1;
         let plain_last_index = self
@@ -367,7 +379,11 @@ impl App {
         // start building glob matchers for builtin mappings immediately
         // this is an appropriate approach because it's statistically likely that
         // all the custom mappings need to be checked
-        if available_parallelism()?.get() > 1 {
+        #[cfg(not(target_os = "wasi"))]
+        let parallel = available_parallelism()?.get() > 1;
+        #[cfg(target_os = "wasi")]
+        let parallel = false;
+        if parallel {
             syntax_mapping.start_offload_build_all();
         }
 
@@ -442,6 +458,8 @@ impl App {
                 .get_one::<regex::Regex>("syntax-delimiter")
                 .cloned(),
             show_nonprintable: self.matches.get_flag("show-all"),
+            highlight_todos: self.matches.get_flag("highlight-todos"),
+            show_paths: self.matches.get_flag("show-paths"),
             nonprintable_notation: match self
                 .matches
                 .get_one::<String>("nonprintable-notation")
@@ -497,6 +515,11 @@ impl App {
                     Some("auto") => !env_no_color() && self.interactive_output,
                     _ => unreachable!("other values for --color are not allowed"),
                 },
+            paging_reserve: self
+                .matches
+                .get_one::<u16>("paging-reserve")
+                .copied()
+                .unwrap_or(0),
             paging_mode,
             scroll_to: self
                 .matches
@@ -524,7 +547,8 @@ impl App {
                 || self.matches.get_flag("force-colorization")
                 || self.number_from_cli
                 || self.number_nonblank_from_cli
-                || self.matches.get_one::<String>("wrap").map(|s| s.as_str()) == Some("truncate")),
+                || self.matches.get_one::<String>("wrap").map(|s| s.as_str()) == Some("truncate")
+                || (cfg!(feature = "git") && self.matches.get_flag("blame"))),
             tab_width: self
                 .matches
                 .get_one::<String>("tabs")
@@ -574,6 +598,12 @@ impl App {
             unbuffered: self.matches.get_flag("unbuffered"),
             number_nonblank: self.matches.get_flag("number-nonblank")
                 || self.number_nonblank_from_cli,
+            function_context: self
+                .matches
+                .get_many::<std::num::NonZeroUsize>("function-context")
+                .map(|vs| vs.map(|n| n.get()).collect())
+                .unwrap_or_default(),
+            fold: self.matches.get_flag("fold"),
             theme: theme(self.theme_options()).to_string(),
             theme_colors: Self::theme_colors_from_matches(&self.matches)?,
             visible_lines: match self.matches.try_contains_id("diff").unwrap_or_default()
@@ -610,6 +640,11 @@ impl App {
                 .get_many::<String>("pager-arg")
                 .map(|args| args.cloned().collect())
                 .unwrap_or_default(),
+            #[cfg(feature = "git")]
+            blame_format: self
+                .matches
+                .get_one::<String>("blame-format")
+                .map(String::as_str),
             use_italic_text: self
                 .matches
                 .get_one::<String>("italic-text")
@@ -631,18 +666,25 @@ impl App {
                 .get_one::<String>("theme-background")
                 .map(|s| s.as_str())
                 == Some("always"),
-            highlighted_lines: self
-                .matches
-                .get_many::<String>("highlight-line")
-                .map(|ws| {
-                    ws.filter(|s| !s.contains('.'))
-                        .map(|s| LineRange::from(s.as_str()))
-                        .collect()
-                })
-                .transpose()?
-                .map(LineRanges::from)
-                .map(HighlightedLineRanges)
-                .unwrap_or_default(),
+            highlighted_lines: {
+                let mut ranges = self
+                    .matches
+                    .get_many::<String>("highlight-line")
+                    .map(|vs| {
+                        vs.filter(|s| !s.contains('.'))
+                            .map(|s| LineRange::from(s.as_str()))
+                            .collect::<Result<Vec<_>>>()
+                    })
+                    .transpose()?
+                    .unwrap_or_default();
+                if let Some(lines) = self
+                    .matches
+                    .get_many::<std::num::NonZeroUsize>("function-context")
+                {
+                    ranges.extend(lines.map(|line| LineRange::new(line.get(), line.get())));
+                }
+                HighlightedLineRanges(LineRanges::from(ranges))
+            },
             highlighted_patterns: self
                 .matches
                 .get_many::<regex::Regex>("highlight-pattern")

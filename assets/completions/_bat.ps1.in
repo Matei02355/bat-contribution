@@ -5,7 +5,7 @@ using namespace System.Management.Automation.Language
 Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $ArrayStyle      = @('default', 'auto', 'full', 'plain', 'changes', 'changes-highlight', 'header', 'header-filename', 'header-filesize', 'header-path', 'header-modified', 'header-permissions', 'highlight-indicator', 'grid', 'grid-vertical', 'rule', 'numbers', 'sidebar', 'snip', 'sidebar-right')
+    $ArrayStyle      = @('default', 'auto', 'full', 'plain', 'changes', 'blame', 'changes-highlight', 'header', 'header-filename', 'header-filesize', 'header-path', 'header-modified', 'header-permissions', 'highlight-indicator', 'grid', 'grid-vertical', 'rule', 'numbers', 'sidebar', 'snip', 'sidebar-right')
     $ArrayCompletion = @('bash', 'fish', 'zsh', 'ps1')
     $ArrayWhen       = @('auto', 'never', 'always')
     $ArrayYesNo      = @('never', 'always')
@@ -76,6 +76,8 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
         '*;--warning' {
             @('none', 'missing-trailing-newline') |
             ForEach-Object {[CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
+        }
+        '*;--blame-format' {
             break
         }
         '*;--binary' {
@@ -170,7 +172,14 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
             [CompletionResult]::new('--osc8'             , 'osc8'             , [CompletionResultType]::ParameterName, 'Link file headers and line numbers.')
             [CompletionResult]::new('--osc8-highlight'             , 'osc8-highlight'             , [CompletionResultType]::ParameterName, 'Link only highlighted line numbers.')
             [CompletionResult]::new('--hyperlink-format'             , 'hyperlink-format'             , [CompletionResultType]::ParameterName, 'Set the hyperlink URI template.')
+            [CompletionResult]::new('--highlight-todos', 'highlight-todos', [CompletionResultType]::ParameterName, 'Emphasize TODO and FIXME comments.')
+            [CompletionResult]::new('--show-paths', 'show-paths', [CompletionResultType]::ParameterName, 'Underline existing literal file paths.')
+            [CompletionResult]::new('--function-context', 'function-context', [CompletionResultType]::ParameterName, 'Show enclosing definition for source line N.')
+            [CompletionResult]::new('--fold', 'fold', [CompletionResultType]::ParameterName, 'Fold syntax-defined blocks, comments and imports.')
+            [CompletionResult]::new('--paging-reserve', 'paging-reserve', [CompletionResultType]::ParameterName, 'Reserve rows during automatic less paging.')
             [CompletionResult]::new('--file-name'             , 'file-name'             , [CompletionResultType]::ParameterName, 'Specify the name to display for a file.')
+            [CompletionResult]::new('--blame', 'blame', [CompletionResultType]::ParameterName, 'Show Git commit attribution.')
+            [CompletionResult]::new('--blame-format', 'blame-format', [CompletionResultType]::ParameterName, 'Format the Git attribution sidebar.')
             [CompletionResult]::new('--diff-context'          , 'diff-context'          , [CompletionResultType]::ParameterName, 'diff-context')
             [CompletionResult]::new('--tabs'                  , 'tabs'                  , [CompletionResultType]::ParameterName, 'Set the tab width to T spaces.')
             [CompletionResult]::new('--wrap'                  , 'wrap'                  , [CompletionResultType]::ParameterName, 'Specify the text-wrapping mode (*auto*, never, character, word, truncate).')

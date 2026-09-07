@@ -62,6 +62,32 @@ Options:
           match any of several patterns; it can also be combined with '--highlight-line'. Use '(?i)'
           for case-insensitive matching.
 
+      --highlight-todos
+          Emphasize TODO, TODOS, FIXME and FIXMES in comments, ignoring case. Highlight from the
+          marker to the end of that comment on the current line, using bold amber text (terminal
+          yellow with palette-based themes). Uses syntax comment scopes, so matching text in strings
+          and source code is unchanged. Disabled by default; requires syntax highlighting and
+          colored output.
+
+      --show-paths
+          Underline recognizable literal file paths that exist. Relative paths are checked from the
+          input file's directory, or the working directory for stdin. Recognizes slash-separated
+          paths, native Windows paths, ~/ paths, and quoted filenames containing a dot. URLs and
+          shell variables are ignored; escapes are not decoded. Existing syntax colors are
+          preserved, including escape and error colors. Checks are cached per input. Disabled by
+          default and requires colored output.
+
+  -W, --function-context <N>
+          Show and highlight the enclosing function, method or type for source line N. Uses syntax
+          scopes and brace-delimited definitions; lines without a recognized complete definition are
+          shown individually. Repeat for multiple lines. Reads each complete text input before
+          rendering.
+
+      --fold
+          Hide the interior lines of complete brace-delimited blocks, multiline comments and
+          consecutive imports. Keep block opening and closing lines. Reads each complete text input
+          before rendering; languages without matching syntax scopes remain unchanged.
+
   -H, --highlight-line <range>
           Highlight line ranges, or character regions using LINE.COLUMN positions. Positions start
           at 1; tabs count as one character and combining marks stay with their character. ANSI
@@ -122,6 +148,21 @@ Options:
           modifiers as '--style'. Applied after the general style. Multiple inputs include any
           combination of files and '-'. Explicit '--plain', numbering flags, and
           '--decorations=never' still take precedence.
+
+      --blame
+          Show Git commit attribution before the line-number sidebar. Uses the history of ordinary
+          UTF-8 files and marks working-tree edits as uncommitted. Files outside a repository and
+          preprocessed or binary or unbuffered inputs have no blame sidebar. This is opt-in and is
+          not included in the default or full styles. Also available as --style=blame. See
+          --blame-format to change the annotation.
+
+      --blame-format <FORMAT>
+          Format the Git blame sidebar (default: '%h %an'). Supported fields: %h (8-digit commit),
+          %H (full commit), %an/%ae (author name/email), %as/%at (author date/Unix time), %cn/%ce
+          (committer name/email), %cs/%ct (committer date/Unix time), %s (subject), and %% (literal
+          percent). Dates use the commit's timezone. Fields unavailable for uncommitted lines are
+          empty. Control characters are escaped, and annotations are shortened to at most 32 columns
+          so source code remains readable.
 
   -d, --diff
           Only show lines that have been added/removed/modified with respect to the Git index. Use
@@ -187,6 +228,12 @@ Options:
   -f, --force-colorization
           Alias for '--decorations=always --color=always'. This is useful if the output of bat is
           piped to another program, but you want to keep the colorization/decorations.
+
+      --paging-reserve <N>
+          Reserve N terminal rows for a multiline shell prompt when paging automatically. Requires
+          less 632 or newer and reduces its viewport as well as the one-screen threshold. Zero
+          disables the reservation. Forced or disabled paging is unchanged; the viewport is kept at
+          least one row high.
 
       --paging <when>
           Specify when to use the pager. To disable the pager, use '--paging=never' or its
@@ -336,11 +383,13 @@ Options:
           Possible values:
           
             * default: enables recommended style components (default).
-            * full: enables all decorations.
+            * full: enables all components except opt-in Git blame.
             * auto: same as 'default', unless the output is piped.
             * plain: disables all available components.
             * changes: show Git modification markers.
             * changes-highlight: highlight lines with Git change markers.
+            * changes: show Git modification markers.
+            * blame: show Git commit attribution (requires the git feature).
             * header: alias for 'header-filename'.
             * header-filename: show filenames before the content.
             * header-filesize: show file sizes before the content.

@@ -21,6 +21,8 @@
 
 #![deny(unsafe_code)]
 
+#[cfg(feature = "git")]
+mod blame;
 mod macros;
 mod modeline;
 
@@ -28,6 +30,7 @@ pub mod assets;
 pub mod assets_metadata {
     pub use super::assets::assets_metadata::*;
 }
+mod comment_annotations;
 pub mod config;
 pub mod controller;
 mod decorations;
@@ -36,21 +39,24 @@ pub mod error;
 pub mod highlight_region;
 pub mod hyperlink;
 pub mod input;
+mod io_identifier;
 mod less;
 #[cfg(feature = "lessopen")]
 mod lessopen;
 pub mod line_range;
 pub(crate) mod nonprintable_notation;
 pub mod output;
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 mod pager;
 #[cfg(feature = "paging")]
 pub(crate) mod paging;
+mod path_annotations;
 mod preprocessor;
 mod pretty_printer;
 pub(crate) mod printer;
 #[cfg(feature = "paging")]
 mod scroll;
+mod structural_context;
 pub mod style;
 pub(crate) mod syntax_mapping;
 mod terminal;

@@ -80,6 +80,29 @@ specified as a name (like 'C++' or 'LaTeX') or possible file extension
 (like 'cpp', 'hpp' or 'md'). Use '\-\-list\-languages' to show all supported
 language names and file extensions.
 .HP
+\fB\-\-highlight\-todos\fR
+.IP
+Emphasize TODO, TODOS, FIXME and FIXMES inside comments, ignoring case. The marker
+and the remainder of its comment on the current line use bold amber text (darker
+amber for light themes and terminal yellow for palette-based themes). Matching
+text in strings or ordinary code is unchanged. Uses the language's comment
+definitions, including embedded languages. Disabled by default; requires syntax
+highlighting and colored output. Long lines excluded from syntax highlighting
+are also excluded from comment annotations.
+.HP
+\fB\-\-show\-paths\fR
+.IP
+Underline recognizable literal file paths that exist locally. Relative paths use
+the input file's directory; stdin and custom readers use the working directory.
+Recognizes slash-separated paths, native Windows paths, ~/ paths, and quoted
+filenames containing a dot. Quoted paths may contain spaces. URLs and shell
+variables are ignored and string escapes are not decoded. This checks literal
+path spellings, not a configuration language's interpretation of a string.
+.IP
+Missing or inaccessible paths remain unchanged. Existing syntax colors and font
+attributes are preserved, including escape and error colors. Checks are cached
+per input with bounded memory. Disabled by default; requires colored output.
+.HP
 \fB\-H\fR, \fB\-\-highlight\-line\fR <N:M>...
 .IP
 Highlight the specified line ranges with a different background color. Append '~N'
@@ -125,6 +148,24 @@ omitted. This option conflicts with \fB\-\-diff\fR and \fB\-\-lessopen\fR.
 \fB\-\-file\-name\fR <name>...
 .IP
 Specify the name to display for a file. Useful when piping data to {{PROJECT_EXECUTABLE}} from STDIN when {{PROJECT_EXECUTABLE}} does not otherwise know the filename. Note that the provided file name is also used for syntax detection.
+.HP
+\fB\-\-blame\fR
+.IP
+Show Git commit attribution before line numbers. Follows renames and marks staged
+or unstaged changes as uncommitted. Requires Git support and ordinary UTF-8 files;
+standard input, preprocessed or unbuffered inputs, and binary files have no blame sidebar.
+This is opt-in, is excluded from default and full styles, and can also be selected
+with the blame style component. It enables decorations when piping unless
+\&'\-\-decorations=never' is set. Computing history can delay the first output line.
+.HP
+\fB\-\-blame\-format\fR <FORMAT>
+.IP
+Format the attribution (default: '%h %an'). Fields: %h (8-digit hash), %H (full
+hash), %an/%ae (author name/email), %as/%at (author date/Unix time), %cn/%ce
+(committer name/email), %cs/%ct (committer date/Unix time), %s (subject), and %%.
+Dates retain the commit's timezone. Uncommitted lines use a zero hash and
+\&'Not Committed Yet'; unavailable metadata is empty. Terminal control characters
+are escaped, and annotations are shortened to at most 32 terminal columns.
 .HP
 \fB\-d\fR, \fB\-\-diff\fR
 .IP
@@ -366,7 +407,15 @@ replacing them.
 By default, the following components are enabled:
 changes, grid, header\-filename, numbers, snip
 .IP
-Possible values: *default*, full, auto, plain, changes, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical,
+The style selects components, while '\-\-decorations' controls whether those
+components are displayed. The auto style selects no components when stdout is
+redirected, even with '\-\-decorations=always' or '\-f'. The default style is
+default, not auto. Use '\-\-style=numbers \-\-decorations=always' to pipe line
+numbers, or '\-\-style=full \-f' to pipe the full colored layout.
+A style such as auto,numbers selects the default layout on a terminal but only
+numbers when piped; decorations must still be enabled for those numbers.
+.IP
+Possible values: *default*, full, auto, plain, changes, blame, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical,
 rule, numbers, sidebar, snip, sidebar-right.
 
 .PP
@@ -525,6 +574,34 @@ Enable optional warnings: 'none' (default) or 'missing-trailing-newline'.
 The warning appears below formatted output, or on standard error when output is
 passed through unchanged. Empty inputs, binary inputs, and excluded final lines
 do not trigger the warning.
+.HP
+\fB\-W\fR, \fB\-\-function\-context\fR <N>
+.IP
+Show the enclosing brace-delimited function, method or type for source line N,
+and highlight that line when colors are enabled. Repeat for multiple lines.
+Use syntax scopes to identify names and block punctuation; comments and strings
+do not establish block boundaries. Lines without a recognized complete definition
+are shown individually. Namespace-contained globals do not select the whole file.
+.HP
+\fB\-\-fold\fR
+.IP
+Hide interior lines of complete brace-delimited blocks, multiline comments and
+consecutive import/include groups. Keep opening and closing block lines.
+Both structural options read each complete UTF-8 or BOM-marked UTF-16 input before
+rendering and conflict with --unbuffered, --line-range, --diff and each other.
+Indentation-only definitions are not indexed. Plain piped output contains retained
+source lines; the snip style shows omissions in decorated output.
+.HP
+\fB\-\-paging\-reserve\fR <N>
+.IP
+Reserve N terminal rows for a multiline shell prompt during automatic paging.
+Requires less 632 or newer and reduces its viewport as well as the one-screen
+threshold. Zero disables the reservation. Forced and disabled paging are unchanged.
+Sets LESS_LINES only for the child pager, overriding an inherited value. Normal
+reservations follow terminal resizing; a reservation at least as large as the
+initial terminal height fixes the viewport at one row. Other pagers report an
+error when automatic paging would use the reservation.
+
 .SH "POSITIONAL ARGUMENTS"
 .HP
 \fB<FILE>...\fR

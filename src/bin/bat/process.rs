@@ -1,10 +1,14 @@
 //! Lazily run one filter per CLI input without buffering its complete output.
 
+#[cfg(not(target_os = "wasi"))]
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::Child;
+#[cfg(not(target_os = "wasi"))]
+use std::process::{Command, Stdio};
 
+#[cfg(not(target_os = "wasi"))]
 use clircle::{Clircle, Identifier};
 
 #[derive(Clone)]
@@ -37,6 +41,15 @@ pub struct ProcessReader {
 }
 
 impl ProcessReader {
+    #[cfg(target_os = "wasi")]
+    fn start(&mut self) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "External input processes are unavailable in WASI",
+        ))
+    }
+
+    #[cfg(not(target_os = "wasi"))]
     fn start(&mut self) -> io::Result<()> {
         let stdout = if cfg!(windows) {
             None

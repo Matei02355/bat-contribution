@@ -1,12 +1,15 @@
 //! Defer pager startup until a source line has a known rendered position.
 use std::cell::Cell;
 use std::io::{self, Seek, Write};
+#[cfg(not(target_os = "wasi"))]
 use std::process::Command;
 
 use crate::config::Config;
 use crate::error::{Error, Result};
+#[cfg(not(target_os = "wasi"))]
 use crate::less::{retrieve_less_version, LessVersion};
 use crate::output::{OutputHandle, OutputType};
+#[cfg(not(target_os = "wasi"))]
 use crate::pager::{get_pager, PagerKind};
 use crate::paging::PagingMode;
 use tempfile::SpooledTempFile;
@@ -19,6 +22,7 @@ pub(crate) struct PagerStart {
 }
 
 impl PagerStart {
+    #[cfg(not(target_os = "wasi"))]
     pub(crate) fn configure(self, command: &mut Command, kind: &PagerKind) {
         command.env(
             "BAT_SCROLL_POSITION",
@@ -61,6 +65,7 @@ pub(crate) struct DeferredOutput<'a> {
 }
 
 impl<'a> DeferredOutput<'a> {
+    #[cfg(not(target_os = "wasi"))]
     pub(crate) fn new(
         config: &'a Config<'a>,
         mode: PagingMode,
@@ -94,6 +99,16 @@ impl<'a> DeferredOutput<'a> {
         }))
     }
 
+    #[cfg(target_os = "wasi")]
+    pub(crate) fn new(
+        _config: &'a Config<'a>,
+        _mode: PagingMode,
+        _reached: &'a Cell<bool>,
+        _filename: Option<String>,
+    ) -> Result<Option<Self>> {
+        Ok(None)
+    }
+
     fn start(&mut self, line: Option<usize>) -> Result<()> {
         if self.output.is_some() {
             return Ok(());
@@ -108,6 +123,7 @@ impl<'a> DeferredOutput<'a> {
                 line,
                 center: self.config.center_highlight || self.config.scroll_to_center,
             }),
+            self.config.paging_reserve,
         )?;
         self.output = Some(output);
         if let Some(mut prefix) = self.prefix.take() {

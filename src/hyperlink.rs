@@ -60,7 +60,10 @@ impl Hyperlink {
 }
 
 pub(crate) fn encode_path(path: &Path) -> Option<String> {
+    #[cfg(not(target_os = "wasi"))]
     let absolute = path_abs::PathAbs::new(path).ok()?;
+    #[cfg(target_os = "wasi")]
+    let absolute = std::path::absolute(path).ok()?;
     let path = absolute.as_path();
     #[cfg(unix)]
     let bytes = {

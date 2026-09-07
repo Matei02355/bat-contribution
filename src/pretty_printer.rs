@@ -28,6 +28,7 @@ struct ActiveStyleComponents {
     vcs_modification_markers: bool,
     #[cfg(feature = "git")]
     vcs_modification_highlighting: bool,
+    git_blame: bool,
     grid: bool,
     grid_vertical: bool,
     rule: bool,
@@ -304,6 +305,32 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Show commit attribution before line numbers (default: false).
+    #[cfg(feature = "git")]
+    pub fn git_blame(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.git_blame = yes;
+        self
+    }
+
+    /// Set the Git blame annotation format (default: "%h %an").
+    #[cfg(feature = "git")]
+    pub fn blame_format(&mut self, format: &'a str) -> &mut Self {
+        self.config.blame_format = Some(format);
+        self
+    }
+
+    /// Emphasize TODO and FIXME markers inside syntax comments (default: false).
+    pub fn highlight_todos(&mut self, yes: bool) -> &mut Self {
+        self.config.highlight_todos = yes;
+        self
+    }
+
+    /// Underline existing literal file paths (default: false).
+    pub fn show_paths(&mut self, yes: bool) -> &mut Self {
+        self.config.show_paths = yes;
+        self
+    }
+
     /// Whether to print binary content or nonprintable characters (default: no)
     pub fn show_nonprintable(&mut self, yes: bool) -> &mut Self {
         self.config.show_nonprintable = yes;
@@ -397,6 +424,14 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Reserve terminal rows from the automatic less pager viewport. Requires
+    /// less 632 or newer; has no effect on forced or disabled paging.
+    #[cfg(feature = "paging")]
+    pub fn paging_reserve(&mut self, rows: u16) -> &mut Self {
+        self.config.paging_reserve = rows;
+        self
+    }
+
     /// Specify the command to start the pager (default: use "less")
     #[cfg(feature = "paging")]
     pub fn pager(&mut self, cmd: &'a str) -> &mut Self {
@@ -421,6 +456,21 @@ impl<'a> PrettyPrinter<'a> {
     /// Specify the lines that should be printed (default: all)
     pub fn line_ranges(&mut self, ranges: LineRanges) -> &mut Self {
         self.config.visible_lines = VisibleLines::Ranges(ranges);
+        self
+    }
+
+    /// Show and highlight the enclosing brace-delimited definition for a source
+    /// line. Repeat for more lines. This reads the complete text input first.
+    pub fn function_context(&mut self, line: usize) -> &mut Self {
+        self.config.function_context.push(line);
+        self.highlighted_lines.push(LineRange::new(line, line));
+        self
+    }
+
+    /// Fold complete syntax-defined blocks, comments, and consecutive imports.
+    /// This reads the complete text input before rendering.
+    pub fn fold(&mut self, yes: bool) -> &mut Self {
+        self.config.fold = yes;
         self
     }
 
@@ -583,6 +633,11 @@ impl<'a> PrettyPrinter<'a> {
         #[cfg(feature = "git")]
         if self.active_style_components.vcs_modification_markers {
             self.config.style_components.insert(StyleComponent::Changes);
+        }
+
+        #[cfg(feature = "git")]
+        if self.active_style_components.git_blame {
+            self.config.style_components.insert(StyleComponent::Blame);
         }
 
         // Collect the inputs to print

@@ -51,6 +51,11 @@ pub struct Config<'a> {
     /// Whether or not to show/replace non-printable characters like space, tab and newline.
     pub show_nonprintable: bool,
 
+    /// Emphasize TODO and FIXME annotations within syntax comment scopes.
+    pub highlight_todos: bool,
+    /// Underline literal paths which exist relative to each input file.
+    pub show_paths: bool,
+
     /// The configured notation for non-printable characters
     pub nonprintable_notation: NonprintableNotation,
 
@@ -103,9 +108,17 @@ pub struct Config<'a> {
     /// Center the first visible highlighted line when opening the pager.
     #[cfg(feature = "paging")]
     pub center_highlight: bool,
+    /// Rows to reserve from the automatic less pager viewport (zero disables).
+    pub paging_reserve: u16,
 
     /// Specifies which lines should be printed
     pub visible_lines: VisibleLines,
+
+    /// Show the enclosing brace-delimited definition for these source lines.
+    pub function_context: Vec<usize>,
+
+    /// Collapse the interiors of syntax-defined blocks, comments, and import groups.
+    pub fold: bool,
 
     /// The syntax highlighting theme
     pub theme: String,
@@ -121,6 +134,9 @@ pub struct Config<'a> {
 
     /// Literal arguments appended after the selected pager's existing arguments
     pub pager_args: Vec<String>,
+    /// Format for the optional Git blame sidebar.
+    #[cfg(feature = "git")]
+    pub blame_format: Option<&'a str>,
 
     /// Whether or not to use ANSI italics
     pub use_italic_text: bool,
@@ -175,7 +191,11 @@ pub struct Config<'a> {
     pub number_nonblank: bool,
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 pub fn get_pager_executable(config_pager: Option<&str>) -> Option<String> {
     crate::pager::get_pager(config_pager)
         .ok()
@@ -214,28 +234,44 @@ fn default_config_should_highlight_no_lines() {
     );
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_with_config_pager_less() {
     let result = get_pager_executable(Some("less"));
     assert_eq!(result, Some("less".to_string()));
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_with_config_pager_builtin() {
     let result = get_pager_executable(Some("builtin"));
     assert_eq!(result, None);
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_with_config_pager_more() {
     let result = get_pager_executable(Some("more"));
     assert_eq!(result, Some("more".to_string()));
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_with_bat_pager() {
     std::env::set_var("BAT_PAGER", "most");
@@ -244,7 +280,11 @@ fn get_pager_executable_with_bat_pager() {
     std::env::remove_var("BAT_PAGER");
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_with_pager_more_switches_to_less() {
     std::env::set_var("PAGER", "more");
@@ -253,7 +293,11 @@ fn get_pager_executable_with_pager_more_switches_to_less() {
     std::env::remove_var("PAGER");
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_default() {
     // Ensure no env vars
@@ -263,28 +307,44 @@ fn get_pager_executable_default() {
     assert_eq!(result, Some("less".to_string()));
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_name_ignoring_arguments() {
     let result = get_pager_executable(Some("foo --bar"));
     assert_eq!(result, Some("foo".to_string()));
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_name_ignoring_path() {
     let result = get_pager_executable(Some("/bin/foo test"));
     assert_eq!(result, Some("/bin/foo".to_string()));
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_invalid_command() {
     let result = get_pager_executable(Some("invalid ' command"));
     assert_eq!(result, None);
 }
 
-#[cfg(all(feature = "minimal-application", feature = "paging"))]
+#[cfg(all(
+    feature = "minimal-application",
+    feature = "paging",
+    not(target_os = "wasi")
+))]
 #[test]
 fn get_pager_executable_empty_config() {
     let result = get_pager_executable(Some(""));

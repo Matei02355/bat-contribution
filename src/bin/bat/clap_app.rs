@@ -170,6 +170,55 @@ pub fn build_app(interactive_output: bool) -> Command {
                 ),
         )
         .arg(
+            Arg::new("highlight-todos")
+                .long("highlight-todos")
+                .overrides_with("highlight-todos")
+                .action(ArgAction::SetTrue)
+                .help("Emphasize TODO and FIXME comments")
+                .long_help("Emphasize TODO, TODOS, FIXME and FIXMES in comments, ignoring case. \
+                    Highlight from the marker to the end of that comment on the current line, \
+                    using bold amber text (terminal yellow with palette-based themes). Uses \
+                    syntax comment scopes, so matching text in strings and source code is unchanged. \
+                    Disabled by default; requires syntax highlighting and colored output.")
+                .hide_short_help(true),
+        )
+        .arg(
+            Arg::new("show-paths")
+                .long("show-paths")
+                .overrides_with("show-paths")
+                .action(ArgAction::SetTrue)
+                .help("Underline existing file paths in the output")
+                .long_help("Underline recognizable literal file paths that exist. Relative paths \
+                    are checked from the input file's directory, or the working directory for stdin. \
+                    Recognizes slash-separated paths, native Windows paths, ~/ paths, and quoted \
+                    filenames containing a dot. URLs and shell variables are ignored; escapes are \
+                    not decoded. Existing syntax colors are preserved, including escape and error \
+                    colors. Checks are cached per input. Disabled by default and requires colored output.")
+                .hide_short_help(true),
+        )
+        .arg(
+            Arg::new("function-context")
+                .long("function-context")
+                .short('W')
+                .action(ArgAction::Append)
+                .value_parser(value_parser!(std::num::NonZeroUsize))
+                .value_name("N")
+                .hide_short_help(true)
+                .conflicts_with_all(["line-range", "unbuffered", "fold"])
+                .help("Show and highlight the enclosing definition for line N.")
+                .long_help("Show and highlight the enclosing function, method or type for source line N. Uses syntax scopes and brace-delimited definitions; lines without a recognized complete definition are shown individually. Repeat for multiple lines. Reads each complete text input before rendering."),
+        )
+        .arg(
+            Arg::new("fold")
+                .long("fold")
+                .action(ArgAction::SetTrue)
+                .overrides_with("fold")
+                .hide_short_help(true)
+                .conflicts_with_all(["line-range", "unbuffered", "function-context"])
+                .help("Fold syntax-defined blocks, comments and import groups.")
+                .long_help("Hide the interior lines of complete brace-delimited blocks, multiline comments and consecutive imports. Keep block opening and closing lines. Reads each complete text input before rendering; languages without matching syntax scopes remain unchanged."),
+        )
+        .arg(
             Arg::new("highlight-line")
                 .long("highlight-line")
                 .short('H')
@@ -292,12 +341,40 @@ pub fn build_app(interactive_output: bool) -> Command {
     {
         app = app
                 .arg(
+                    Arg::new("blame")
+                        .long("blame")
+                        .overrides_with("blame")
+                        .action(ArgAction::SetTrue)
+                        .help("Show Git attribution alongside source lines")
+                        .long_help("Show Git commit attribution before the line-number sidebar. \
+                            Uses the history of ordinary UTF-8 files and marks working-tree edits \
+                            as uncommitted. Files outside a repository and preprocessed or binary \
+                            or unbuffered inputs have no blame sidebar. This is opt-in and is not included in \
+                            the default or full styles. Also available as --style=blame. \
+                            See --blame-format to change the annotation."),
+                )
+                .arg(
+                    Arg::new("blame-format")
+                        .long("blame-format")
+                        .overrides_with("blame-format")
+                        .value_name("FORMAT")
+                        .help("Format the Git blame sidebar")
+                        .long_help("Format the Git blame sidebar (default: '%h %an'). Supported \
+                            fields: %h (8-digit commit), %H (full commit), %an/%ae (author name/email), \
+                            %as/%at (author date/Unix time), %cn/%ce (committer name/email), \
+                            %cs/%ct (committer date/Unix time), %s (subject), and %% (literal percent). \
+                            Dates use the commit's timezone. Fields unavailable for uncommitted lines \
+                            are empty. Control characters are escaped, and annotations are shortened \
+                            to at most 32 columns so source code remains readable.")
+                        .hide_short_help(true),
+                )
+                .arg(
                     Arg::new("diff")
                         .long("diff")
                         .short('d')
                         .overrides_with("diff")
                         .action(ArgAction::SetTrue)
-                        .conflicts_with("line-range")
+                        .conflicts_with_all(["line-range", "function-context", "fold"])
                         .conflicts_with("process")
                         .help("Only show lines that have been added/removed/modified.")
                         .long_help(
@@ -493,6 +570,17 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .long_help("Alias for '--decorations=always --color=always'. This is useful \
                         if the output of bat is piped to another program, but you want \
                         to keep the colorization/decorations.")
+        )
+        .arg(
+            Arg::new("paging-reserve")
+                .long("paging-reserve")
+                .value_name("N")
+                .value_parser(value_parser!(u16))
+                .action(ArgAction::Set)
+                .overrides_with("paging-reserve")
+                .hide_short_help(true)
+                .help("Reserve N terminal rows when paging automatically with less.")
+                .long_help("Reserve N terminal rows for a multiline shell prompt when paging automatically. Requires less 632 or newer and reduces its viewport as well as the one-screen threshold. Zero disables the reservation. Forced or disabled paging is unchanged; the viewport is kept at least one row high."),
         )
         .arg(
             Arg::new("paging")
@@ -792,7 +880,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                 })
                 .help(
                     "Comma-separated list of style elements to display \
-                     (*default*, auto, full, plain, changes, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical, rule, numbers, sidebar, snip, sidebar-right).",
+                     (*default*, auto, full, plain, changes, blame, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical, rule, numbers, sidebar, snip, sidebar-right).",
                 )
                 .long_help(
                     "Configure which elements (line numbers, file headers, grid \
@@ -812,11 +900,13 @@ pub fn build_app(interactive_output: bool) -> Command {
                         changes, grid, header-filename, numbers, snip\n\n\
                      Possible values:\n\n  \
                      * default: enables recommended style components (default).\n  \
-                     * full: enables all decorations.\n  \
+                     * full: enables all components except opt-in Git blame.\n  \
                      * auto: same as 'default', unless the output is piped.\n  \
                      * plain: disables all available components.\n  \
                      * changes: show Git modification markers.\n  \
                      * changes-highlight: highlight lines with Git change markers.\n  \
+                     * changes: show Git modification markers.\n  \
+                     * blame: show Git commit attribution (requires the git feature).\n  \
                      * header: alias for 'header-filename'.\n  \
                      * header-filename: show filenames before the content.\n  \
                      * header-filesize: show file sizes before the content.\n  \

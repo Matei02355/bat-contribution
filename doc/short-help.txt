@@ -41,6 +41,8 @@ Options:
           Override the style when displaying only standard input.
       --style-multiple-files <components>
           Override the style when displaying multiple inputs.
+      --blame
+          Show Git attribution alongside source lines
   -d, --diff
           Only show lines that have been added/removed/modified.
       --tabs <T>
@@ -81,9 +83,9 @@ Options:
           Squeeze consecutive empty lines.
       --style <components>
           Comma-separated list of style elements to display (*default*, auto, full, plain, changes,
-          changes-highlight, header, header-filename, header-filesize, header-path, header-modified,
-          header-permissions, highlight-indicator, grid, grid-vertical, rule, numbers, sidebar,
-          snip, sidebar-right).
+          blame, changes-highlight, header, header-filename, header-filesize, header-path,
+          header-modified, header-permissions, highlight-indicator, grid, grid-vertical, rule,
+          numbers, sidebar, snip, sidebar-right).
   -r, --line-range <N:M>
           Only print the lines from N to M.
   -L, --list-languages

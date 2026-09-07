@@ -11,6 +11,7 @@ pub enum StyleComponent {
     Changes,
     #[cfg(feature = "git")]
     ChangesHighlight,
+    Blame,
     Grid,
     GridVertical,
     Rule,
@@ -44,6 +45,7 @@ impl StyleComponent {
             StyleComponent::Changes => &[StyleComponent::Changes],
             #[cfg(feature = "git")]
             StyleComponent::ChangesHighlight => &[StyleComponent::ChangesHighlight],
+            StyleComponent::Blame => &[StyleComponent::Blame],
             StyleComponent::Grid => &[StyleComponent::Grid],
             StyleComponent::GridVertical => &[StyleComponent::GridVertical],
             StyleComponent::Rule => &[StyleComponent::Rule],
@@ -100,6 +102,7 @@ impl FromStr for StyleComponent {
             "changes" => Ok(StyleComponent::Changes),
             #[cfg(feature = "git")]
             "changes-highlight" => Ok(StyleComponent::ChangesHighlight),
+            "blame" => Ok(StyleComponent::Blame),
             "grid" => Ok(StyleComponent::Grid),
             "grid-vertical" => Ok(StyleComponent::GridVertical),
             "rule" => Ok(StyleComponent::Rule),
@@ -138,6 +141,10 @@ impl StyleComponents {
     #[cfg(feature = "git")]
     pub fn changes_highlight(&self) -> bool {
         self.0.contains(&StyleComponent::ChangesHighlight)
+    }
+
+    pub fn blame(&self) -> bool {
+        self.0.contains(&StyleComponent::Blame)
     }
 
     pub fn grid(&self) -> bool {

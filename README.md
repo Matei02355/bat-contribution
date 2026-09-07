@@ -161,6 +161,34 @@ highlighting:
 git show v0.6.0:src/main.rs | bat -l rs
 ```
 
+#### Git blame
+
+Use `bat --blame file.rs` to show each line's commit and author before the line
+numbers. Attribution follows renames and accounts for staged and unstaged edits;
+new or changed lines show `00000000 Not Committed Yet`. It uses the current
+checkout's history, including linked worktrees.
+
+The sidebar is optional and is excluded from the `default` and `full` styles.
+`--blame` enables it even when piping output; `--decorations=never` suppresses it.
+For a custom layout, use `--style=blame,numbers` (and `--decorations=always` when
+piping). The library exposes `PrettyPrinter::git_blame` and `blame_format`.
+
+```sh
+bat --blame --blame-format='%h %an %as' file.rs
+```
+
+The format supports `%h` (8-digit hash), `%H` (full hash), `%an` / `%ae` (author
+name / email), `%as` / `%at` (author date / Unix time), `%cn` / `%ce` (committer
+name / email), `%cs` / `%ct` (committer date / Unix time), `%s` (subject), and `%%`.
+Dates retain the commit's timezone. Missing metadata for uncommitted lines is
+empty. Annotations are sanitized and shortened to at most 32 terminal columns.
+
+Blame requires the `git` build feature and ordinary UTF-8 files. Standard input,
+preprocessed or unbuffered inputs, binary files, and files outside Git repositories have no
+blame sidebar. Narrow terminals may hide it to leave room for the source.
+Computing history adds work before the first line is printed, so enable it only
+when attribution is needed.
+
 #### `git diff`
 
 You can combine `bat` with `git diff` to view lines around code changes with proper syntax
@@ -521,6 +549,32 @@ symlinks and Windows alternate data streams take precedence. Use
 `--literal-file-names` to disable this shorthand. Explicit `--scroll-to` or
 `--center-highlight` overrides the shorthand's position.
 
+### WASI Preview 1
+
+Build a portable command-line module with the Rust-only regex backend:
+
+```bash
+rustup target add wasm32-wasip1
+cargo build --release --locked --target wasm32-wasip1 --no-default-features --features wasi-application
+```
+
+The result is `target/wasm32-wasip1/release/bat.wasm`. Run it with a WASI Preview 1
+host that supplies standard input/output and exposes the files you want to read.
+For example, the Node.js launcher below exposes only the current directory as `/`:
+
+```bash
+node examples/wasi.mjs target/wasm32-wasip1/release/bat.wasm --color=always /README.md
+```
+
+The module supports files, stdin, syntax highlighting, themes, line ranges and
+wrapping. Native pagers, Git integration, external preprocessors and asset rebuilding
+are excluded from this feature set; explicit `--paging=always` reports an error.
+Use `--terminal-width` when the host cannot supply a terminal size. `HOME`, XDG and
+`BAT_CONFIG_DIR`/`BAT_CACHE_PATH` refer to paths inside the host's exposed filesystem;
+without `HOME`, configuration locations default to `/.config/bat` and `/.cache/bat`.
+The `regex-fancy` backend has the same syntax compatibility limitations as native
+builds using that backend. This is a WASI command-line module, not a browser DOM API.
+
 ## Customization
 
 ### Highlighting theme
@@ -577,6 +631,44 @@ Although these themes are more restricted, they have three advantages over truec
 - Adapt to terminal theme changes. Even for already printed output.
 - Visually harmonize better with other terminal software.
 
+### TODO comments
+
+Use `bat --highlight-todos file.rs` to emphasize TODO and FIXME annotations in
+comments. Matching is case-insensitive and includes the plural forms TODOS and
+FIXMES. The marker and the rest of its comment on that line become bold amber;
+light themes use a darker amber, and palette-based themes use terminal yellow.
+
+This uses each language's comment definitions, including comments in embedded
+languages. It leaves matching words in strings and ordinary code unchanged, and
+it does not extend a TODO highlight to following lines in a block comment.
+Syntax highlighting and colored output must be enabled. Standard plain text has
+no comment definitions, and lines longer than bat's syntax-highlighting limit
+retain the usual unhighlighted behavior.
+
+The option is disabled by default. Add `--highlight-todos` to the configuration
+file to enable it permanently, or use `PrettyPrinter::highlight_todos` in the
+library.
+
+### Existing file paths
+
+Use `bat --show-paths config.toml` to underline recognizable paths that exist on
+the local filesystem. Files and directories are checked relative to the input
+file's directory. Standard input and custom readers use the working directory;
+a display-only filename does not change that base.
+
+The option recognizes paths containing `/`, native Windows paths containing `\`,
+`~/` paths, and quoted filenames containing a dot, such as `"config.toml"`. Quoting
+also allows spaces in a path. It checks literal spellings without decoding string
+escapes or evaluating shell variables, and ignores URLs. Missing or inaccessible
+paths remain unchanged. Underlining preserves syntax colors and other font
+attributes, including colors that identify escapes or invalid syntax; it does not
+validate a configuration language's interpretation of a string.
+
+Checks are cached per input, with a bounded cache for long streams. This extra
+filesystem work only happens when the option and colored output are enabled.
+The option is disabled by default and is also available through
+`PrettyPrinter::show_paths`.
+
 ### Output style
 
 You can use the `--style` option to control the appearance of `bat`'s output.
@@ -592,7 +684,7 @@ The available pre-defined styles are:
 | Style | Description |
 |-------|-------------|
 | `default` | Enables the recommended style components listed above. |
-| `full` | Enables all available components. |
+| `full` | Enables all components except opt-in Git blame. |
 | `auto` | Same as `default`, unless the output is piped. |
 | `plain` | Disables all available components. |
 
@@ -601,6 +693,7 @@ The available individual components are:
 | Component | Description |
 |-----------|-------------|
 | `changes` | Show Git modification markers. |
+| `blame` | Show Git commit attribution (requires Git support). |
 | `header` | Alias for `header-filename`. |
 | `header-filename` | Show filenames before the content. |
 | `header-filesize` | Show file sizes before the content. |
@@ -619,11 +712,54 @@ The available individual components are:
 > Or, if you want to override the styles completely, you use `--style=numbers` to
 > only show the line numbers.
 
+### Enclosing definitions and folded output
+
+Use `bat -W 123 file.cpp` (or `--function-context 123`) to show the complete
+enclosing function, method or type and highlight the selected source line.
+Repeat `-W` to select multiple definitions. This uses syntax-defined names and
+block punctuation, including C, C++, Java, Objective-C and Rust definitions.
+Braces inside comments and strings do not establish boundaries. Namespace-contained
+globals and lines without a recognized complete definition are shown individually.
+Indentation-only definitions, such as Python functions, currently use that fallback.
+
+Use `bat --fold file.java` to collapse the interiors of complete brace-delimited
+blocks, multiline comments and consecutive import/include groups. Opening and
+closing block lines remain visible; nested folds are combined. Styling can show
+omissions with `--style=numbers,snip --decorations=always`. As with `--line-range`,
+plain piped output contains just the retained source lines.
+
+Both options read each complete input before rendering and support UTF-8 and
+BOM-marked UTF-16. They cannot be combined with `--unbuffered`, `--line-range`,
+`--diff` or each other. Syntax grammars describe tokens, not a compiler AST;
+unsupported or incomplete constructs may fall back to individual lines for context
+or remain unfolded. File line numbers are retained in either mode.
+
 ### Decorations
 
 By default, `bat` only shows decorations (such as line numbers, file headers, grid borders, etc.) when outputting to an interactive terminal. You can control this behavior with the `--decorations` option. Use `--decorations=always` to show decorations even when piping output to another command, or `--decorations=never` to disable them entirely. Possible values are `auto` (default), `never`, and `always`.
 
 There is also the `--force-colorization` option, which is an alias for `--decorations=always --color=always`. This is useful if you want to keep colorization and decorations when piping `bat`'s output to another program.
+
+`--style` chooses the components; `--decorations` controls whether the chosen
+components are displayed. These settings act separately. In particular,
+`--style=auto` selects no components when stdout is redirected, even with
+`--decorations=always` or `-f`. The default style is `default`, not `auto`.
+
+For predictable piped output, choose a style explicitly and enable decorations:
+
+```sh
+bat --style=numbers --decorations=always file.rs | other-command
+bat --style=full --force-colorization file.rs | other-command
+```
+
+If your configuration contains `--style=auto`, replace it with `--style=default`
+to keep the normal terminal layout and let `--decorations=auto` suppress it when
+piping. Then `--decorations=always` can enable that layout without changing its
+components. Other configured style components and numbering flags still apply.
+
+`auto` can also be combined with individual components. For example,
+`--style=auto,numbers` selects the default layout on a terminal but only line
+numbers when piped; the piped numbers still need `--decorations=always` (or `-f`).
 
 ### Grayscale colors
 
@@ -875,6 +1011,21 @@ For `less` 530 or newer, it should work out of the box.
 
 The `-S`/`--chop-long-lines` option is added when `bat`'s `-S`/`--chop-long-lines` option is used. This tells `less`
 to truncate any lines larger than the terminal width.
+
+### Reserve rows for a shell prompt
+
+With less 632 or newer, use `bat --paging-reserve=4 file.txt` to reserve four
+terminal rows for a multiline shell prompt during automatic paging. Output that
+would fill those rows stays in the pager; shorter output still exits automatically.
+This reduces the less viewport as well as its one-screen threshold. Use a nonnegative
+number of rows; zero disables the reservation. `--paging=always` and
+`--paging=never` retain their existing behavior.
+
+The option sets `LESS_LINES` only for the child pager and overrides an inherited
+value. Ordinary reservations follow less's terminal resizing behavior. If the
+reservation already fills the current terminal, the viewport is fixed at one row.
+Unsupported pagers and older less versions report an error when automatic paging
+would use the reservation. This option can also be placed in the configuration file.
 
 ### Indentation
 

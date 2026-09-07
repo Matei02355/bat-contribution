@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
-use clircle::{Clircle, Identifier};
+use crate::io_identifier::{Clircle, Identifier, Stdio};
 use content_inspector::{self, ContentType};
 
 use crate::error::*;
@@ -244,7 +244,7 @@ impl<'a> Input<'a> {
         match self.kind {
             InputKind::StdIn => {
                 if let Some(stdout) = stdout_identifier {
-                    let input_identifier = Identifier::try_from(clircle::Stdio::Stdin)
+                    let input_identifier = Identifier::try_from(Stdio::Stdin)
                         .map_err(|e| format!("Stdin: Error identifying file: {e}"))?;
                     if stdout.surely_conflicts_with(&input_identifier) {
                         return Err("IO circle detected. The input from stdin is also an output. Aborting to avoid infinite loop.".into());
@@ -281,7 +281,7 @@ impl<'a> Input<'a> {
                             )
                             .into());
                         }
-                        file = input_identifier.into_inner().expect("The file was lost in the clircle::Identifier, this should not have happened...");
+                        file = input_identifier.into_inner().expect("The file was lost in the input identifier, this should not have happened...");
                     }
 
                     InputReader::with_raw_stream(BufReader::new(file.take(max_bytes)), raw_stream)?
@@ -371,7 +371,9 @@ impl<'a> InputReader<'a> {
 
         if content_type == Some(ContentType::UTF_16LE) {
             read_utf16_line(&mut reader, &mut first_line, 0x00, 0x0A)?;
-        } else if content_type == Some(ContentType::UTF_16BE) {
+        } else if content_type == Some(ContentType::UTF_16BE)
+            && !first_line.ends_with(&[0x00, 0x0A])
+        {
             read_utf16_line(&mut reader, &mut first_line, 0x0A, 0x00)?;
         }
 
@@ -739,4 +741,23 @@ fn utf16le_issue3367() {
     assert!(res.is_ok());
     assert!(!res.unwrap());
     assert!(buffer.is_empty());
+}
+
+#[test]
+fn utf16be_first_line_does_not_consume_the_second_line() {
+    let bytes: Vec<u8> = std::iter::once(0xfeff)
+        .chain("one\ntwo\nthree\n".encode_utf16())
+        .flat_map(u16::to_be_bytes)
+        .collect();
+    let mut reader = InputReader::new(&bytes[..]);
+    let mut line = Vec::new();
+    for expected in ["one\n", "two\n", "three\n"] {
+        assert!(reader.read_line(&mut line).unwrap());
+        assert_eq!(
+            encoding_rs::UTF_16BE.decode_with_bom_removal(&line).0,
+            expected
+        );
+        line.clear();
+    }
+    assert!(!reader.read_line(&mut line).unwrap());
 }

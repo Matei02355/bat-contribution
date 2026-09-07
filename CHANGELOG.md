@@ -17,6 +17,7 @@
 - Run Windows tests directly in PowerShell so Git Bash does not mask missing native commands, see #3970 (@Matei02355)
 
 - Add an optional profile-guided build script with output verification and reproducible benchmarks, see #3983 (@Matei02355)
+- Clarify how automatic styles interact with decoration settings when piping output, see #3992 (@Matei02355). Closes #1743
 
 - Update Cargo dependencies to resolve current RustSec advisories, see #3861 (@TyceHerrman)
 - Add instructions for removing fish help abbreviations to README, see #3655 (@claw-explorer). Closes #3536
@@ -97,6 +98,14 @@
 
 - Show the single input's filename in less and built-in pager prompts, see #3984 (@Matei02355)
 - Add the `sidebar-right` style modifier and `PrettyPrinter::sidebar_right()` for right-side decorations, see #3985 (@Matei02355)
+- Add opt-in Git blame annotations with configurable commit metadata and support for working-tree edits and renames, see #3991 (@Matei02355). Closes #1536 and #2810
+- Add optional TODO and FIXME highlighting inside language-defined comments, see #3994 (@Matei02355). Closes #2225
+- Add opt-in underlining of existing literal file paths while preserving syntax colors, see #3996 (@Matei02355). Closes #2907
+
+- Add a WASI Preview 1 command-line build with Rust-only regexes and runtime validation, see #3997 (@Matei02355).
+- Add syntax-aware enclosing-definition context and folded output, preserving original source line numbers, see #3998 (@Matei02355).
+- Add `--paging-reserve` to keep rows available for multiline shell prompts during automatic less paging, see #3999 (@Matei02355).
+
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)
 - Map justfile, Justfile, .justfile, and *.justfile to Makefile syntax highlighting, see #3623 (@zachvalenta)
@@ -131,6 +140,7 @@
 - Highlight Bash `select` loops and their `in` keyword, see #3978 (@Matei02355)
 
 - Handle Bash alias option delimiters and punctuation in alias names, see #3978 (@Matei02355)
+- Submit rendered lines in one output write to reduce overhead for colored Git logs and pagers, see #3993 (@Matei02355). Closes #1147
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)

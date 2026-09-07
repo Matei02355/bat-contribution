@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 use std::io::{self, BufRead, Write};
 use std::mem;
 
-use clircle::{Clircle, Identifier};
+use crate::io_identifier::{Clircle, Identifier};
 
 pub struct Controller<'a> {
     config: &'a Config<'a>,
@@ -136,6 +136,7 @@ impl Controller<'_> {
                     self.config.pager,
                     &self.config.pager_args,
                     filename,
+                    self.config.paging_reserve,
                 )?);
             }
         }
@@ -157,7 +158,7 @@ impl Controller<'_> {
         let stdout_identifier = if cfg!(windows) || attached_to_pager {
             None
         } else {
-            clircle::Identifier::stdout()
+            Identifier::stdout()
         };
 
         #[cfg(feature = "paging")]
@@ -254,6 +255,8 @@ impl Controller<'_> {
         #[cfg(not(feature = "paging"))]
         let needs_line_mapping = false;
         let raw_stream = !needs_line_mapping
+            && !self.config.fold
+            && self.config.function_context.is_empty()
             && self.config.loop_through
             && !self.config.fail_if_syntax_unsupported
             && !self.config.warn_missing_newline
@@ -285,7 +288,11 @@ impl Controller<'_> {
                 return Ok(true);
             }
         }
-        let custom_config = self.config_for_syntax(&mut opened_input)?;
+        let mut custom_config = self.config_for_syntax(&mut opened_input)?;
+        if self.config.fold || !self.config.function_context.is_empty() {
+            let config = custom_config.get_or_insert_with(|| self.config.clone());
+            self.select_structure(config, &mut opened_input)?;
+        }
         let controller = Controller {
             config: custom_config.as_ref().unwrap_or(self.config),
             assets: self.assets,
@@ -300,6 +307,41 @@ impl Controller<'_> {
             #[cfg(feature = "paging")]
             scroll_reached,
         )
+    }
+
+    fn select_structure(&self, config: &mut Config, opened_input: &mut OpenedInput) -> Result<()> {
+        if config.unbuffered {
+            return Err("Structural context requires a complete input and cannot be used with unbuffered mode".into());
+        }
+        let syntax = self.assets.get_syntax(
+            config.language,
+            config.fallback_syntax,
+            opened_input,
+            &config.syntax_mapping,
+        )?;
+        let mut bytes = Vec::new();
+        let mut line = Vec::new();
+        while opened_input.reader.read_line(&mut line)? {
+            bytes.append(&mut line);
+        }
+        let (encoding, bom) =
+            encoding_rs::Encoding::for_bom(&bytes).unwrap_or((encoding_rs::UTF_8, 0));
+        let (text, _, errors) = encoding.decode(&bytes[bom..]);
+        if errors || text.contains('\0') {
+            return Err("Structural context requires UTF-8 or BOM-marked Unicode text".into());
+        }
+        let structure =
+            crate::structural_context::Structure::parse(&text, syntax.syntax, syntax.syntax_set)?;
+        if !config.colored_output && !config.function_context.is_empty() {
+            config.highlighted_lines = Default::default();
+        }
+        config.visible_lines = VisibleLines::Ranges(if config.fold {
+            structure.folded()
+        } else {
+            structure.context(&config.function_context)
+        });
+        opened_input.reader = InputReader::try_new(std::io::Cursor::new(bytes))?;
+        Ok(())
     }
 
     fn config_for_syntax(&self, input: &mut OpenedInput) -> Result<Option<Config<'_>>> {

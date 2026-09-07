@@ -2,6 +2,62 @@ mod utils;
 use utils::command::bat;
 
 #[test]
+fn syntax_delimiters_reset_comment_annotations() {
+    let output = |text: &str, extra: &[&str]| {
+        bat()
+            .args([
+                "--paging=never",
+                "--color=always",
+                "--style=plain",
+                "--language=rust",
+                "--theme=TwoDark",
+                "--highlight-todos",
+            ])
+            .args(extra)
+            .write_stdin(text)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+    assert_eq!(
+        output(
+            "/* TODO unfinished\n---\nfn main() {} // FIXME after reset\n",
+            &["--syntax-delimiter=^---$", "--line-range=3:"]
+        ),
+        output("fn main() {} // FIXME after reset\n", &[])
+    );
+}
+
+#[test]
+fn enclosing_context_preserves_per_syntax_styles_and_highlighting() {
+    let output = |selection: &[&str]| {
+        bat()
+            .args([
+                "--paging=never",
+                "--color=always",
+                "--decorations=always",
+                "--language=C",
+                "--theme=TwoDark",
+                "--style=plain",
+                "--style-for",
+                "C",
+                "numbers,highlight-indicator",
+                "--highlight-todos",
+            ])
+            .args(selection)
+            .write_stdin("int outside;\nint value() {\n return 1; // TODO improve\n}\nint after;\n")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+    assert_eq!(output(&["-W3"]), output(&["-r2:4", "-H3"]));
+}
+
+#[test]
 fn byte_limits_combine_with_periodic_line_filters() {
     bat()
         .args(["--max-bytes=8", "--line-range=1:~2"])

@@ -294,11 +294,12 @@ pub fn list_themes(
         ))?;
     }
 
-    let mut output_type = OutputType::from_mode_with_args(
+    let mut output_type = OutputType::from_mode_with_args_and_reserve(
         config.paging_mode,
         config.wrapping_mode,
         config.pager,
         &config.pager_args,
+        config.paging_reserve,
     )?;
     let mut writer = output_type.handle()?;
     writer.write_fmt(format_args!("{buf}"))?;
@@ -405,7 +406,7 @@ fn invoke_bugreport(app: &App, cache_dir: &Path) {
         .info(ColorSchemeCollector)
         .info(CompileTimeInformation::default());
 
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     {
         report = report.info(CommandOutput::new("Less version", pager, &["--version"]));
     }

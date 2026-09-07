@@ -1,24 +1,24 @@
 use std::fmt;
 use std::io;
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 use std::process::Child;
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 use std::thread::{spawn, JoinHandle};
 
 use crate::error::*;
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 use crate::less::{retrieve_less_version, LessVersion};
 #[cfg(feature = "paging")]
 use crate::paging::PagingMode;
 #[cfg(feature = "paging")]
 use crate::wrapping::WrappingMode;
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 fn prompt_filename(filename: &str) -> String {
     crate::preprocessor::sanitize_for_terminal(filename).replace('\t', "^I")
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 fn less_filename_prompts(filename: &str) -> [String; 4] {
     let mut escaped = String::new();
     for character in prompt_filename(filename).chars() {
@@ -38,13 +38,13 @@ fn less_filename_prompts(filename: &str) -> [String; 4] {
     ]
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 pub struct BuiltinPager {
     pager: minus::Pager,
     handle: Option<JoinHandle<Result<()>>>,
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 impl BuiltinPager {
     fn new(filename: Option<&str>) -> Self {
         let pager = minus::Pager::new();
@@ -75,7 +75,7 @@ impl BuiltinPager {
     }
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 impl std::fmt::Debug for BuiltinPager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BuiltinPager")
@@ -85,7 +85,7 @@ impl std::fmt::Debug for BuiltinPager {
     }
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 #[derive(Debug, PartialEq)]
 enum SingleScreenAction {
     Quit,
@@ -94,15 +94,27 @@ enum SingleScreenAction {
 
 #[derive(Debug)]
 pub enum OutputType {
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     Pager(Child),
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     BuiltinPager(BuiltinPager),
     Stdout(io::Stdout),
 }
 
 impl OutputType {
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", target_os = "wasi"))]
+    pub fn from_mode(
+        paging_mode: crate::paging::PagingMode,
+        _wrapping_mode: crate::wrapping::WrappingMode,
+        _pager: Option<&str>,
+    ) -> Result<Self> {
+        if paging_mode == crate::paging::PagingMode::Always {
+            return Err("Paging is unavailable in WASI; use --paging=never".into());
+        }
+        Ok(Self::stdout())
+    }
+
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     pub fn from_mode(
         paging_mode: PagingMode,
         wrapping_mode: WrappingMode,
@@ -119,7 +131,37 @@ impl OutputType {
         pager: Option<&str>,
         pager_args: &[String],
     ) -> Result<Self> {
-        Self::from_mode_with_args_and_filename(paging_mode, wrapping_mode, pager, pager_args, None)
+        Self::from_mode_with_args_and_reserve(paging_mode, wrapping_mode, pager, pager_args, 0)
+    }
+
+    /// Select output while reserving rows from automatic less paging.
+    #[cfg(feature = "paging")]
+    pub fn from_mode_with_reserve(
+        paging_mode: PagingMode,
+        wrapping_mode: WrappingMode,
+        pager: Option<&str>,
+        reserve: u16,
+    ) -> Result<Self> {
+        Self::from_mode_with_args_and_reserve(paging_mode, wrapping_mode, pager, &[], reserve)
+    }
+
+    /// Append literal pager arguments and reserve automatic paging rows.
+    #[cfg(feature = "paging")]
+    pub fn from_mode_with_args_and_reserve(
+        paging_mode: PagingMode,
+        wrapping_mode: WrappingMode,
+        pager: Option<&str>,
+        pager_args: &[String],
+        reserve: u16,
+    ) -> Result<Self> {
+        Self::from_mode_with_args_and_filename(
+            paging_mode,
+            wrapping_mode,
+            pager,
+            pager_args,
+            None,
+            reserve,
+        )
     }
 
     #[cfg(feature = "paging")]
@@ -129,6 +171,7 @@ impl OutputType {
         pager: Option<&str>,
         pager_args: &[String],
         filename: Option<&str>,
+        reserve: u16,
     ) -> Result<Self> {
         Self::from_mode_at(
             paging_mode,
@@ -137,6 +180,7 @@ impl OutputType {
             pager_args,
             filename,
             None,
+            reserve,
         )
     }
 
@@ -148,31 +192,42 @@ impl OutputType {
         pager_args: &[String],
         filename: Option<&str>,
         start: Option<crate::scroll::PagerStart>,
+        reserve: u16,
     ) -> Result<Self> {
-        use self::PagingMode::*;
-        Ok(match paging_mode {
-            Always => OutputType::try_pager(
-                SingleScreenAction::Nothing,
-                wrapping_mode,
-                pager,
-                pager_args,
-                filename,
-                start,
-            )?,
-            QuitIfOneScreen => OutputType::try_pager(
-                SingleScreenAction::Quit,
-                wrapping_mode,
-                pager,
-                pager_args,
-                filename,
-                start,
-            )?,
-            _ => OutputType::stdout(),
-        })
+        #[cfg(target_os = "wasi")]
+        {
+            let _ = (pager_args, filename, start, reserve);
+            Self::from_mode(paging_mode, wrapping_mode, pager)
+        }
+        #[cfg(not(target_os = "wasi"))]
+        {
+            use self::PagingMode::*;
+            Ok(match paging_mode {
+                Always => OutputType::try_pager(
+                    SingleScreenAction::Nothing,
+                    wrapping_mode,
+                    pager,
+                    pager_args,
+                    filename,
+                    start,
+                    0,
+                )?,
+                QuitIfOneScreen => OutputType::try_pager(
+                    SingleScreenAction::Quit,
+                    wrapping_mode,
+                    pager,
+                    pager_args,
+                    filename,
+                    start,
+                    reserve,
+                )?,
+                _ => OutputType::stdout(),
+            })
+        }
     }
 
     /// Try to launch the pager. Fall back to stdout in case of errors.
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     fn try_pager(
         single_screen_action: SingleScreenAction,
         wrapping_mode: WrappingMode,
@@ -180,6 +235,7 @@ impl OutputType {
         pager_args: &[String],
         filename: Option<&str>,
         start: Option<crate::scroll::PagerStart>,
+        reserve: u16,
     ) -> Result<Self> {
         use crate::pager::{self, PagerKind, PagerSource};
         use std::process::{Command, Stdio};
@@ -196,6 +252,17 @@ impl OutputType {
             return Err(Error::InvalidPagerValueBat);
         }
 
+        let reserved_version = if reserve > 0 {
+            if pager.kind != PagerKind::Less {
+                return Err("--paging-reserve requires less 632 or newer".into());
+            }
+            match retrieve_less_version(&pager.bin) {
+                Some(LessVersion::Less(version)) if version >= 632 => Some(version),
+                _ => return Err("--paging-reserve requires less 632 or newer".into()),
+            }
+        } else {
+            None
+        };
         if pager.kind == PagerKind::Builtin {
             if !pager_args.is_empty() {
                 return Err("The built-in pager does not accept additional arguments".into());
@@ -208,7 +275,9 @@ impl OutputType {
         let child = pager::run_command(pager.bin.as_ref(), |program| {
             let mut p = Command::new(program);
             if pager.kind == PagerKind::Less {
-                let less_version = if filename.is_some()
+                let less_version = if let Some(version) = reserved_version {
+                    Some(LessVersion::Less(version))
+                } else if filename.is_some()
                     || args.is_empty()
                     || pager.source == PagerSource::EnvVarPager
                 {
@@ -216,6 +285,15 @@ impl OutputType {
                 } else {
                     None
                 };
+                if reserve > 0 {
+                    let height = console::Term::stdout().size().0;
+                    let rows = if reserve < height {
+                        format!("-{reserve}")
+                    } else {
+                        "1".to_owned()
+                    };
+                    p.env("LESS_LINES", rows);
+                }
                 let less_options = std::env::var("LESS").unwrap_or_default();
                 if let (Some(filename), Some(LessVersion::Less(_))) = (filename, &less_version) {
                     // LESS is a separate option language, not shell words. Be conservative
@@ -275,6 +353,9 @@ impl OutputType {
                 } else {
                     p.args(&args);
                 }
+                if reserve > 0 {
+                    p.arg("-F");
+                }
                 p.env("LESSCHARSET", "UTF-8");
 
                 #[cfg(feature = "lessopen")]
@@ -304,33 +385,33 @@ impl OutputType {
         OutputType::Stdout(io::stdout())
     }
 
-    #[cfg(feature = "paging")]
+    #[cfg(all(feature = "paging", not(target_os = "wasi")))]
     pub(crate) fn is_pager(&self) -> bool {
         matches!(self, OutputType::Pager(_) | OutputType::BuiltinPager(_))
     }
 
-    #[cfg(not(feature = "paging"))]
+    #[cfg(any(not(feature = "paging"), target_os = "wasi"))]
     pub(crate) fn is_pager(&self) -> bool {
         false
     }
 
     pub fn handle<'a>(&'a mut self) -> Result<OutputHandle<'a>> {
         Ok(match *self {
-            #[cfg(feature = "paging")]
+            #[cfg(all(feature = "paging", not(target_os = "wasi")))]
             OutputType::Pager(ref mut command) => OutputHandle::IoWrite(
                 command
                     .stdin
                     .as_mut()
                     .ok_or("Could not open stdin for pager")?,
             ),
-            #[cfg(feature = "paging")]
+            #[cfg(all(feature = "paging", not(target_os = "wasi")))]
             OutputType::BuiltinPager(ref mut pager) => OutputHandle::FmtWrite(&mut pager.pager),
             OutputType::Stdout(ref mut handle) => OutputHandle::IoWrite(handle),
         })
     }
 }
 
-#[cfg(feature = "paging")]
+#[cfg(all(feature = "paging", not(target_os = "wasi")))]
 impl Drop for OutputType {
     fn drop(&mut self) {
         match *self {
