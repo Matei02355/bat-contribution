@@ -9,7 +9,7 @@
 
 ## Other
 
-- Use Rust's native executable lookup for pagers and remove the obsolete `grep-cli` workaround; retain Windows `.com` pager support as a fallback, see #0 (@Matei02355)
+- Use Rust's native executable lookup for pagers and remove the obsolete `grep-cli` workaround; retain Windows `.com` pager support as a fallback, see #3986 (@Matei02355)
 
 ## Features
 
