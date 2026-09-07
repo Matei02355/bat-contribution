@@ -26,7 +26,7 @@
 
 ## Bugfixes
 
-- Refresh the GitHub theme with official GitHub Light Default syntax colors and gray line numbers, see #0 (@Matei02355)
+- Refresh the GitHub theme with official GitHub Light Default syntax colors and gray line numbers, see #3988 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)
