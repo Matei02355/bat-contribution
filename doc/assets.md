@@ -143,3 +143,17 @@ with optional `--timing`. It recognizes call headers and source locations, embed
 the existing Python syntax, and resets parsing between executed lines. Ordinary
 program output remains plain. Select it with `--language="Python Trace"`, use the
 `.pytrace` extension, or let a leading trace header identify piped input.
+
+### CSS grammar replacement
+
+CSS comes from [ryboe/CSS3](https://github.com/ryboe/CSS3), which has over
+500,000 installs on [Package Control](https://packagecontrol.io/packages/CSS3).
+The dependency lives in `assets/CSS3` so it is not loaded alongside the older
+CSS grammar in Sublime Packages. `assets/create.sh` temporarily replaces that
+grammar during the build, retains the public name `CSS`, and restores the
+original on success or failure. The dependency's license remains in the asset
+acknowledgements.
+
+A small compatibility patch provides the declaration-list entry point used by
+HTML, Svelte and Vue style attributes. Embedded styles use the same grammar as
+standalone CSS without claiming the `.css` extension twice.
