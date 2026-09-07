@@ -86,6 +86,7 @@
 - Add syntax mapping for DNF repo configuration files, see #3814 (@injust)
 
 ## Themes
+- Color Markdown table separators and header rules in Monokai Extended, see #0 (@Matei02355)
 
 - Remove the Visual Studio Dark+ theme, see #3552 (@CosmicHorrorDev)
 
