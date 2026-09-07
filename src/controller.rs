@@ -91,11 +91,22 @@ impl Controller<'_> {
 
             let wrapping_mode = self.config.wrapping_mode;
 
-            output_type_opt = Some(OutputType::from_mode_with_args(
+            let filename = match inputs.as_slice() {
+                [input]
+                    if matches!(input.kind, InputKind::OrdinaryFile(_))
+                        || input.metadata.user_provided_name.is_some()
+                        || input.description.title() != &input.description.name =>
+                {
+                    Some(input.description.title().as_str())
+                }
+                _ => None,
+            };
+            output_type_opt = Some(OutputType::from_mode_with_args_and_filename(
                 paging_mode,
                 wrapping_mode,
                 self.config.pager,
                 &self.config.pager_args,
+                filename,
             )?);
         }
 

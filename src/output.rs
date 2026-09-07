@@ -14,6 +14,31 @@ use crate::paging::PagingMode;
 use crate::wrapping::WrappingMode;
 
 #[cfg(feature = "paging")]
+fn prompt_filename(filename: &str) -> String {
+    crate::preprocessor::sanitize_for_terminal(filename).replace('\t', "^I")
+}
+
+#[cfg(feature = "paging")]
+fn less_filename_prompts(filename: &str) -> [String; 4] {
+    let mut escaped = String::new();
+    for character in prompt_filename(filename).chars() {
+        if matches!(character, '?' | ':' | '.' | '%' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    // If the user opens another file with :e, less knows its real name.
+    let name = format!("?f%f:{escaped}.");
+    let detail = " ?ltlines %lt-%lb?L/%L.. ?e(END).%t";
+    [
+        format!("s{name} ?e(END).%t"),
+        format!("m{name}{detail}"),
+        format!("M{name}{detail}"),
+        format!("={name}{detail}"),
+    ]
+}
+
+#[cfg(feature = "paging")]
 pub struct BuiltinPager {
     pager: minus::Pager,
     handle: Option<JoinHandle<Result<()>>>,
@@ -21,8 +46,13 @@ pub struct BuiltinPager {
 
 #[cfg(feature = "paging")]
 impl BuiltinPager {
-    fn new() -> Self {
+    fn new(filename: Option<&str>) -> Self {
         let pager = minus::Pager::new();
+        if let Some(filename) = filename {
+            pager
+                .set_prompt(prompt_filename(filename))
+                .expect("failed to set prompt on newly created pager");
+        }
 
         let mut input_register = minus::input::HashedEventRegister::default();
         input_register.add_key_events(&["home"], |_, _| {
@@ -89,6 +119,17 @@ impl OutputType {
         pager: Option<&str>,
         pager_args: &[String],
     ) -> Result<Self> {
+        Self::from_mode_with_args_and_filename(paging_mode, wrapping_mode, pager, pager_args, None)
+    }
+
+    #[cfg(feature = "paging")]
+    pub(crate) fn from_mode_with_args_and_filename(
+        paging_mode: PagingMode,
+        wrapping_mode: WrappingMode,
+        pager: Option<&str>,
+        pager_args: &[String],
+        filename: Option<&str>,
+    ) -> Result<Self> {
         use self::PagingMode::*;
         Ok(match paging_mode {
             Always => OutputType::try_pager(
@@ -96,10 +137,15 @@ impl OutputType {
                 wrapping_mode,
                 pager,
                 pager_args,
+                filename,
             )?,
-            QuitIfOneScreen => {
-                OutputType::try_pager(SingleScreenAction::Quit, wrapping_mode, pager, pager_args)?
-            }
+            QuitIfOneScreen => OutputType::try_pager(
+                SingleScreenAction::Quit,
+                wrapping_mode,
+                pager,
+                pager_args,
+                filename,
+            )?,
             _ => OutputType::stdout(),
         })
     }
@@ -111,6 +157,7 @@ impl OutputType {
         wrapping_mode: WrappingMode,
         pager_from_config: Option<&str>,
         pager_args: &[String],
+        filename: Option<&str>,
     ) -> Result<Self> {
         use crate::pager::{self, PagerKind, PagerSource};
         use std::process::{Command, Stdio};
@@ -131,7 +178,7 @@ impl OutputType {
             if !pager_args.is_empty() {
                 return Err("The built-in pager does not accept additional arguments".into());
             }
-            return Ok(OutputType::BuiltinPager(BuiltinPager::new()));
+            return Ok(OutputType::BuiltinPager(BuiltinPager::new(filename)));
         }
 
         let resolved_path = match grep_cli::resolve_binary(&pager.bin) {
@@ -149,6 +196,26 @@ impl OutputType {
         let args = pager.args;
 
         if pager.kind == PagerKind::Less {
+            let less_version = if filename.is_some()
+                || args.is_empty()
+                || pager.source == PagerSource::EnvVarPager
+            {
+                retrieve_less_version(&pager.bin)
+            } else {
+                None
+            };
+            let less_options = std::env::var("LESS").unwrap_or_default();
+            if let (Some(filename), Some(LessVersion::Less(_))) = (filename, &less_version) {
+                // LESS is a separate option language, not shell words. Be conservative
+                // when it might contain a user prompt; do not replace that prompt.
+                if !less_options.contains('P') && !less_options.contains("prompt") {
+                    for prompt in less_filename_prompts(filename) {
+                        // Keep the value in a separate argument. In a combined -Pvalue
+                        // option, less treats '$' inside a filename as an option separator.
+                        p.arg("-P").arg(prompt);
+                    }
+                }
+            }
             // less needs to be called with the '-R' option in order to properly interpret the
             // ANSI color sequences printed by bat. If someone has set PAGER="less -F", we
             // therefore need to overwrite the arguments and add '-R'.
@@ -166,8 +233,6 @@ impl OutputType {
                 if wrapping_mode == WrappingMode::NoWrapping(true) {
                     p.arg("-S"); // Short version of --chop-long-lines for compatibility
                 }
-
-                let less_version = retrieve_less_version(&pager.bin);
 
                 // Ensures that 'less' quits together with 'bat'
                 // The BusyBox version of less does not support -K
