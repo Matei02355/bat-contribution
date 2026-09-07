@@ -26,7 +26,7 @@
 
 ## Bugfixes
 
-- Handle Bash alias option delimiters and punctuation in alias names, see #0 (@Matei02355)
+- Handle Bash alias option delimiters and punctuation in alias names, see #3978 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)
