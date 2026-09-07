@@ -3,7 +3,7 @@
 
 ## Other
 
-- Clarify how automatic styles interact with decoration settings when piping output, see #0 (@Matei02355). Closes #1743
+- Clarify how automatic styles interact with decoration settings when piping output, see #3992 (@Matei02355). Closes #1743
 
 - Update Cargo dependencies to resolve current RustSec advisories, see #3861 (@TyceHerrman)
 - Add instructions for removing fish help abbreviations to README, see #3655 (@claw-explorer). Closes #3536
