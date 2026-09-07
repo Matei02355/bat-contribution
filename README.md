@@ -763,6 +763,25 @@ and process diagnostics go to standard error. Line numbers, line ranges and
 highlights refer to the processed text. Git change markers are omitted;
 `--diff` and `--lessopen` cannot be combined with `--process`.
 
+For a Jupyter notebook, the [notebook preview example](examples/notebook-preview.py)
+converts version 4 cells and their saved textual outputs to Markdown. It requires
+Python 3 and never executes cells. Download the script and use its local path:
+
+```bash
+bat --process "python3 /path/to/notebook-preview.py" --language=markdown analysis.ipynb
+```
+
+The preview retains cell order, code, Markdown, stream output, results and error
+tracebacks. Images and other nontext outputs are represented by their MIME types;
+attachments are not rendered. This example reads the complete notebook into memory.
+
+On systems with `strings`, inspect printable strings in executables or other binary
+files without running them. `-a` scans the entire input, including when read from stdin:
+
+```bash
+bat --process "strings -a" --language=txt /path/to/executable
+```
+
 ## Configuration file
 
 `bat` can also be customized with a configuration file. The location of the file is dependent

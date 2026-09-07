@@ -9,6 +9,8 @@
 
 ## Features
 
+- Add a notebook preview preprocessor example and document binary string previews with `--process`, see #3967 (@Matei02355)
+
 - Add `--process` to stream each input through a command while retaining its filename and syntax, see #3967 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
