@@ -9,6 +9,8 @@
 
 ## Features
 
+- Add a `trailing_whitespace` utility syntax to highlight trailing spaces and tabs with theme backgrounds. Closes #2249, see #3924 (@Matei02355)
+
 - Add opt-in theme background colors through `--theme-background`, see #3924 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
