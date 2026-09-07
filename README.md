@@ -296,6 +296,19 @@ the most recent release of `bat`, download the latest `.deb` package from the
 sudo dpkg -i bat_0.18.3_amd64.deb  # adapt version number and architecture
 ```
 
+Releases also include versionless aliases for automated downloads. For example,
+the following always downloads the latest release's amd64 Debian package:
+
+```bash
+curl -fLO https://github.com/sharkdp/bat/releases/latest/download/bat_amd64.deb
+sudo dpkg -i bat_amd64.deb
+```
+
+Archive aliases use `bat-<target>.tar.gz` (or `.zip` on Windows), for example
+`bat-x86_64-unknown-linux-gnu.tar.gz`. They contain the same versioned directory
+as the original archive. Versioned release assets remain available for pinned
+downloads.
+
 ### On Alpine Linux
 
 You can install [the `bat` package](https://pkgs.alpinelinux.org/packages?name=bat)
@@ -631,7 +644,9 @@ syntax:
 
 This works very similar to how we add new syntax definitions.
 > [!NOTE]
-> Custom themes must be stored in [`.tmTheme` files](https://www.sublimetext.com/docs/color_schemes_tmtheme.html).
+> Custom themes can use [`.tmTheme` files](https://www.sublimetext.com/docs/color_schemes_tmtheme.html)
+> or [VS Code JSON color themes](https://code.visualstudio.com/api/extension-guides/color-theme)
+> with a `.json` or `.jsonc` extension.
 > Newer `.sublime-color-scheme` files are currently not supported.
 
 First, create a folder with the new syntax highlighting themes:
@@ -648,7 +663,30 @@ bat cache --build
 
 Finally, use `bat --list-themes` to check if the new themes are available.
 > [!NOTE]
-> `bat` uses the name of the `.tmTheme` file for the theme's name. 
+> `bat` uses the filename without its extension for the theme's name.
+
+For VS Code themes, copy the theme JSON and any files referenced by `include` or
+`tokenColors` into the themes directory, preserving their relative paths, then
+run `bat cache --build`. JSON comments and trailing commas are supported.
+For example, a file named `my-theme.json` can contain:
+
+```json
+{
+  "colors": {
+    "editor.foreground": "#d4d4d4",
+    "editor.background": "#1e1e1e",
+    "editorLineNumber.foreground": "#858585"
+  },
+  "tokenColors": [
+    { "scope": "comment", "settings": { "foreground": "#6a9955", "fontStyle": "italic" } }
+  ]
+}
+```
+
+Select it with `bat --theme=my-theme`. TextMate scope rules and relevant editor
+colors are imported; VS Code workbench colors and semantic token rules are not
+used. Semantic highlighting requires language-server information that `bat`
+does not have. Bold, italic, and underline styles are supported.
 
 ### Adding or changing file type associations
 
@@ -885,9 +923,32 @@ commands.
 
 ### Format
 
-The configuration file is a simple list of command line arguments. Use `bat --help` to see a full list of possible options and values. In addition, you can add comments by prepending a line with the `#` character.
+The extensionless `config` file is a simple list of command line arguments. Use `bat --help` to see a full list of possible options and values. In addition, you can add comments by prepending a line with the `#` character.
 
-Example configuration file:
+Alternatively, create `config.toml` in the same configuration directory. It is used
+when the extensionless `config` file is absent, for both user and system
+configuration. `BAT_CONFIG_PATH` always selects the exact file; a `.toml`
+extension selects TOML parsing. Existing configuration files keep their priority.
+
+TOML keys use the long option names without `--`. Strings and integers supply
+option values, arrays repeat an option, and `true` enables a flag. `false` omits
+that flag from the file; it does not undo a flag from another configuration source.
+Counted flags such as `plain` also accept an integer (`plain = 2` means `-pp`).
+Options are applied in file order. Environment settings and command-line options
+keep their usual precedence over file settings.
+
+```toml
+theme = "TwoDark"
+style = "numbers,changes"
+tabs = 4
+paging = "never"
+map-syntax = ["*.ino:C++", ".ignore:Git Ignore"]
+```
+
+To generate a commented TOML template at a chosen location, set `BAT_CONFIG_PATH`
+to a `.toml` file before running `bat --generate-config-file`.
+
+Example extensionless `config` file:
 ```bash
 # Set the theme to "TwoDark"
 --theme="TwoDark"

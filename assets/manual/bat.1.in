@@ -507,6 +507,15 @@ with a \fBbat\fR subdirectory appended. \fBBAT_CONFIG_DIR\fR and
 \fBBAT_CACHE_PATH\fR take precedence. Empty and relative XDG values are ignored;
 Windows otherwise uses its native application data directories.
 .PP
+
+If the extensionless config file is absent, config.toml in the same directory is
+used instead. This applies to both system and user configuration. An explicit
+BAT_CONFIG_PATH selects that exact file; the .toml extension selects TOML parsing.
+TOML keys are long option names without the leading dashes. Strings and integers
+supply values, arrays repeat options, and true enables a flag. False omits a flag
+from that file and does not cancel settings from other sources. Counted flags
+also accept integers, for example plain = 2 is equivalent to -pp.
+
 To generate a default configuration file, call:
 
 \fB{{PROJECT_EXECUTABLE}} --generate-config-file\fR

@@ -2,12 +2,23 @@
 
 
 ## Other
+- Publish SHA-256 checksum sidecars for release archives and Debian packages, see #3943 (@Matei02355)
+
+- Publish versionless release download aliases alongside existing archives and Debian packages, see #3973 (@Matei02355)
+
+- Use standard Debian architectures for musl packages so installation does not require forcing the architecture, see #3972 (@Matei02355)
+
+- Run Windows tests directly in PowerShell so Git Bash does not mask missing native commands, see #3970 (@Matei02355)
 
 - Update Cargo dependencies to resolve current RustSec advisories, see #3861 (@TyceHerrman)
 - Add instructions for removing fish help abbreviations to README, see #3655 (@claw-explorer). Closes #3536
 - Add .NET slnx extension, see #3682 (@ltrzesniewski)
 
 ## Features
+
+- Load custom VS Code JSON themes with relative includes, token colors, and JSONC syntax, see #3975 (@Matei02355)
+
+- Accept optional TOML configuration files while preserving existing config-file precedence, see #3971 (@Matei02355)
 
 - Add a `trailing_whitespace` utility syntax to highlight trailing spaces and tabs with theme backgrounds. Closes #2249, see #3924 (@Matei02355)
 
@@ -135,6 +146,12 @@
 - Replace `libgit2` with a pure Rust implementation of git called `gitoxide`, see PR #3703 (@blinxen)
 
 ## Syntaxes
+
+- Preserve ordinary highlighting in unindented manpage prose, including fish documentation, see #3974 (@Matei02355)
+
+- Highlight Java records, sealed types, and permits clauses in the pinned grammar, see #3969 (@Matei02355)
+
+- Highlight C# record classes and structs, including positional parameters, inheritance, and constraints, see #3968 (@Matei02355)
 
 - Add Prolog syntax highlighting, see #3965 (@Matei02355)
 

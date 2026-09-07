@@ -239,7 +239,7 @@ impl App {
         let mut args = if help_requested {
             config_args.unwrap_or_default()
         } else {
-            config_args.map_err(|_| "Could not parse configuration file")?
+            config_args?
         };
 
         if use_local_config {
