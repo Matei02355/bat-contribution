@@ -604,6 +604,13 @@ The `\fBcache --clear\fR` command also removes automatic cache generations.
 .br
 If you ever want to remove the custom languages, you can clear the cache with `\fB{{PROJECT_EXECUTABLE}} cache --clear\fR`.
 
+.PP
+Repeat \fBcache --source\fR to combine ordered system and user asset directories.
+Later sources take precedence for theme names and syntax lookup.
+For example, \fBcache --build --automatic --source /usr/share/bat --source ~/.config/bat\fR
+tracks package assets alongside user assets, rebuilding only in the user's cache.
+Use the source paths selected by your distribution and configuration; shared sources are not discovered automatically.
+
 .SH "ADDING CUSTOM THEMES"
 Similarly to custom languages, {{PROJECT_EXECUTABLE}} supports Sublime Text \fB.tmTheme\fR themes.
 These can be installed to `\fB$({{PROJECT_EXECUTABLE}} --config-dir)/themes\fR`, and are added to the cache with

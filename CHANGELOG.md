@@ -16,9 +16,16 @@
 - Add instructions for removing fish help abbreviations to README, see #3655 (@claw-explorer). Closes #3536
 - Add .NET slnx extension, see #3682 (@ltrzesniewski)
 
+## Other
+
+- Use Rust's native executable lookup for pagers and remove the obsolete `grep-cli` workaround; retain Windows `.com` pager support as a fallback, see #3986 (@Matei02355)
+
 ## Features
 
 - Add a notebook preview preprocessor example and document binary string previews with `--process`, see #3967 (@Matei02355)
+- Support combining system and user asset directories with repeated `cache --source`; automatic rebuilds track every source, see #3979 (@Matei02355)
+
+- Opt into automatic rebuilding of custom assets after source or version changes with `bat cache --build --automatic`, see #3979 (@Matei02355)
 
 - Load custom VS Code JSON themes with relative includes, token colors, and JSONC syntax, see #3975 (@Matei02355)
 

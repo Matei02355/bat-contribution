@@ -181,109 +181,98 @@ impl OutputType {
             return Ok(OutputType::BuiltinPager(BuiltinPager::new(filename)));
         }
 
-        let resolved_path = match grep_cli::resolve_binary(&pager.bin) {
-            Ok(path) => path,
-            Err(_) => {
-                crate::bat_warning!(
-                    "Pager '{}' not found, outputting to stdout instead",
-                    pager.bin
-                );
-                return Ok(OutputType::stdout());
-            }
-        };
-
-        let mut p = Command::new(resolved_path);
         let args = pager.args;
 
-        if pager.kind == PagerKind::Less {
-            let less_version = if filename.is_some()
-                || args.is_empty()
-                || pager.source == PagerSource::EnvVarPager
-            {
-                retrieve_less_version(&pager.bin)
+        let child = pager::run_command(pager.bin.as_ref(), |program| {
+            let mut p = Command::new(program);
+            if pager.kind == PagerKind::Less {
+                let less_version = if filename.is_some()
+                    || args.is_empty()
+                    || pager.source == PagerSource::EnvVarPager
+                {
+                    retrieve_less_version(&pager.bin)
+                } else {
+                    None
+                };
+                let less_options = std::env::var("LESS").unwrap_or_default();
+                if let (Some(filename), Some(LessVersion::Less(_))) = (filename, &less_version) {
+                    // LESS is a separate option language, not shell words. Be conservative
+                    // when it might contain a user prompt; do not replace that prompt.
+                    if !less_options.contains('P') && !less_options.contains("prompt") {
+                        for prompt in less_filename_prompts(filename) {
+                            // Keep the value in a separate argument. In a combined -Pvalue
+                            // option, less treats '$' inside a filename as an option separator.
+                            p.arg("-P").arg(prompt);
+                        }
+                    }
+                }
+                // less needs to be called with the '-R' option in order to properly interpret the
+                // ANSI color sequences printed by bat. If someone has set PAGER="less -F", we
+                // therefore need to overwrite the arguments and add '-R'.
+                //
+                // We only do this for PAGER (as it is not specific to 'bat'), not for BAT_PAGER
+                // or bats '--pager' command line option.
+                let replace_arguments_to_less = pager.source == PagerSource::EnvVarPager;
+
+                if args.is_empty() || replace_arguments_to_less {
+                    p.arg("-R"); // Short version of --RAW-CONTROL-CHARS for maximum compatibility
+                    if single_screen_action == SingleScreenAction::Quit {
+                        p.arg("-F"); // Short version of --quit-if-one-screen for compatibility
+                    }
+
+                    if wrapping_mode == WrappingMode::NoWrapping(true) {
+                        p.arg("-S"); // Short version of --chop-long-lines for compatibility
+                    }
+
+                    // Ensures that 'less' quits together with 'bat'
+                    // The BusyBox version of less does not support -K
+                    if less_version != Some(LessVersion::BusyBox) {
+                        p.arg("-K"); // Short version of '--quit-on-intr'
+                    }
+
+                    // Passing '--no-init' fixes a bug with '--quit-if-one-screen' in older
+                    // versions of 'less'. Unfortunately, it also breaks mouse-wheel support.
+                    //
+                    // See: http://www.greenwoodsoftware.com/less/news.530.html
+                    //
+                    // For newer versions (530 or 558 on Windows), we omit '--no-init' as it
+                    // is not needed anymore.
+                    if single_screen_action == SingleScreenAction::Quit {
+                        match less_version {
+                            None => {
+                                p.arg("--no-init");
+                            }
+                            Some(LessVersion::Less(version))
+                                if (version < 530 || (cfg!(windows) && version < 558)) =>
+                            {
+                                p.arg("--no-init");
+                            }
+                            _ => {}
+                        }
+                    }
+                } else {
+                    p.args(&args);
+                }
+                p.env("LESSCHARSET", "UTF-8");
+
+                #[cfg(feature = "lessopen")]
+                // Ensures that 'less' does not preprocess input again if '$LESSOPEN' is set.
+                p.arg("--no-lessopen");
             } else {
-                None
+                p.args(&args);
             };
-            let less_options = std::env::var("LESS").unwrap_or_default();
-            if let (Some(filename), Some(LessVersion::Less(_))) = (filename, &less_version) {
-                // LESS is a separate option language, not shell words. Be conservative
-                // when it might contain a user prompt; do not replace that prompt.
-                if !less_options.contains('P') && !less_options.contains("prompt") {
-                    for prompt in less_filename_prompts(filename) {
-                        // Keep the value in a separate argument. In a combined -Pvalue
-                        // option, less treats '$' inside a filename as an option separator.
-                        p.arg("-P").arg(prompt);
-                    }
-                }
-            }
-            // less needs to be called with the '-R' option in order to properly interpret the
-            // ANSI color sequences printed by bat. If someone has set PAGER="less -F", we
-            // therefore need to overwrite the arguments and add '-R'.
-            //
-            // We only do this for PAGER (as it is not specific to 'bat'), not for BAT_PAGER
-            // or bats '--pager' command line option.
-            let replace_arguments_to_less = pager.source == PagerSource::EnvVarPager;
 
-            if args.is_empty() || replace_arguments_to_less {
-                p.arg("-R"); // Short version of --RAW-CONTROL-CHARS for maximum compatibility
-                if single_screen_action == SingleScreenAction::Quit {
-                    p.arg("-F"); // Short version of --quit-if-one-screen for compatibility
-                }
+            p.args(pager_args);
 
-                if wrapping_mode == WrappingMode::NoWrapping(true) {
-                    p.arg("-S"); // Short version of --chop-long-lines for compatibility
-                }
-
-                // Ensures that 'less' quits together with 'bat'
-                // The BusyBox version of less does not support -K
-                if less_version != Some(LessVersion::BusyBox) {
-                    p.arg("-K"); // Short version of '--quit-on-intr'
-                }
-
-                // Passing '--no-init' fixes a bug with '--quit-if-one-screen' in older
-                // versions of 'less'. Unfortunately, it also breaks mouse-wheel support.
-                //
-                // See: http://www.greenwoodsoftware.com/less/news.530.html
-                //
-                // For newer versions (530 or 558 on Windows), we omit '--no-init' as it
-                // is not needed anymore.
-                if single_screen_action == SingleScreenAction::Quit {
-                    match less_version {
-                        None => {
-                            p.arg("--no-init");
-                        }
-                        Some(LessVersion::Less(version))
-                            if (version < 530 || (cfg!(windows) && version < 558)) =>
-                        {
-                            p.arg("--no-init");
-                        }
-                        _ => {}
-                    }
-                }
-            } else {
-                p.args(args);
-            }
-            p.env("LESSCHARSET", "UTF-8");
-
-            #[cfg(feature = "lessopen")]
-            // Ensures that 'less' does not preprocess input again if '$LESSOPEN' is set.
-            p.arg("--no-lessopen");
-        } else {
-            p.args(args);
-        };
-
-        p.args(pager_args);
-
-        Ok(p.stdin(Stdio::piped())
-            .spawn()
-            .map(OutputType::Pager)
-            .unwrap_or_else(|_| {
-                crate::bat_warning!(
-                    "Pager '{}' not found, outputting to stdout instead",
-                    &pager.bin
-                );
-                OutputType::stdout()
-            }))
+            p.stdin(Stdio::piped()).spawn()
+        });
+        Ok(child.map(OutputType::Pager).unwrap_or_else(|_| {
+            crate::bat_warning!(
+                "Pager '{}' not found, outputting to stdout instead",
+                &pager.bin
+            );
+            OutputType::stdout()
+        }))
     }
 
     pub(crate) fn stdout() -> Self {

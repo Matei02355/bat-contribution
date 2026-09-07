@@ -50,15 +50,25 @@ const THEME_PREVIEW_DATA: &[u8] = include_bytes!("../../../assets/theme_preview.
 
 #[cfg(feature = "build-assets")]
 fn build_assets(matches: &clap::ArgMatches, config_dir: &Path, cache_dir: &Path) -> Result<()> {
-    let source_dir = matches
-        .get_one::<String>("source")
-        .map(Path::new)
-        .unwrap_or_else(|| config_dir);
+    let source_dirs: Vec<&Path> = match matches.get_many::<String>("source") {
+        Some(sources) => {
+            let sources: Vec<_> = sources.map(Path::new).collect();
+            for source in &sources {
+                if !source.is_dir() {
+                    return Err(
+                        format!("Asset source '{}' is not a directory", source.display()).into(),
+                    );
+                }
+            }
+            sources
+        }
+        None => vec![config_dir],
+    };
 
     let automatic = matches.get_flag("automatic");
     let recipe = if automatic {
         Some(automatic_assets::Recipe::new(
-            source_dir,
+            &source_dirs,
             cache_dir,
             !matches.get_flag("blank"),
             matches.get_flag("acknowledgements"),
@@ -67,8 +77,8 @@ fn build_assets(matches: &clap::ArgMatches, config_dir: &Path, cache_dir: &Path)
         None
     };
 
-    bat::assets::build(
-        source_dir,
+    bat::assets::build_from_dirs(
+        &source_dirs,
         !matches.get_flag("blank"),
         matches.get_flag("acknowledgements"),
         cache_dir,
@@ -396,13 +406,9 @@ fn invoke_bugreport(app: &App, cache_dir: &Path) {
         .info(CompileTimeInformation::default());
 
     #[cfg(feature = "paging")]
-    if let Ok(resolved_path) = grep_cli::resolve_binary(pager) {
-        report = report.info(CommandOutput::new(
-            "Less version",
-            resolved_path,
-            &["--version"],
-        ))
-    };
+    {
+        report = report.info(CommandOutput::new("Less version", pager, &["--version"]));
+    }
 
     report.print::<Markdown>();
 }
