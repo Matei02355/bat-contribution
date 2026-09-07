@@ -257,7 +257,7 @@ complete -c $bat -l clear -f -d "Reset definitions to defaults" -n __bat_cache_n
 
 complete -c $bat -l blank -f -d "Create new data instead of appending" -n "__bat_cache_subcommand; and not __fish_seen_argument -l clear"
 
-complete -c $bat -l source -x -a "(__fish_complete_directories)" -d "Load syntaxes and themes from DIR" -n "__bat_cache_subcommand; and not __fish_seen_argument -l clear"
+complete -c $bat -l source -x -a "(__fish_complete_directories)" -d "Load assets from DIR; repeat for ordered sources" -n "__bat_cache_subcommand; and not __fish_seen_argument -l clear"
 
 complete -c $bat -l target -x -a "(__fish_complete_directories)" -d "Store cache in DIR" -n __bat_cache_subcommand
 

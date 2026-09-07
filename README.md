@@ -602,6 +602,36 @@ syntax:
    consider opening a "syntax request" ticket after reading the policies and
    instructions [here](doc/assets.md): [Open Syntax Request](https://github.com/sharkdp/bat/issues/new?labels=syntax-request&template=syntax_request.md).
 
+### Combining system and user assets
+
+Packages can install syntax definitions and themes in a shared directory, for
+example `/usr/share/bat/syntaxes` and `/usr/share/bat/themes`. Each user can opt
+into these assets alongside their own without changing the shared files:
+
+```bash
+mkdir -p "$(bat --config-dir)"
+bat cache --build --automatic \
+  --source /usr/share/bat \
+  --source "$(bat --config-dir)"
+```
+
+Use the directory selected by your distribution or administrator in place of
+`/usr/share/bat`; bat does not create or scan that location by default. Repeat
+`--source` in order of increasing priority. Later themes replace earlier themes
+with the same name, and later syntax definitions take precedence for matching
+names, scopes and extensions. All syntax sources are linked together, so a user
+syntax can include a syntax provided by a system package. Integrated assets
+remain available unless `--blank` is specified.
+
+Automatic mode records every source and refreshes the user's cache after package
+updates, additions or removals. Package installation scripts only install source
+files in the shared location; they do not modify home directories or run bat for
+other users. Cache files are written only to the user's cache directory (or the
+explicit `--target`). Every configured source directory must remain readable;
+a removed package should leave the shared directory available, or the user can
+rebuild with an updated source list. Use `--no-custom-assets` to bypass unavailable
+sources. Without `--automatic`, rerun the same build command after changes.
+
 ### Adding new themes
 
 This works very similar to how we add new syntax definitions.

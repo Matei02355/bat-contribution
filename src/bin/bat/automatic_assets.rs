@@ -19,6 +19,8 @@ const GENERATIONS: &str = "automatic";
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Recipe {
     source_dir: PathBuf,
+    #[serde(default)]
+    preceding_source_dirs: Vec<PathBuf>,
     include_integrated_assets: bool,
     include_acknowledgements: bool,
     fingerprint: String,
@@ -26,82 +28,102 @@ pub(crate) struct Recipe {
 
 impl Recipe {
     pub(crate) fn new(
-        source_dir: &Path,
+        source_dirs: &[&Path],
         cache_dir: &Path,
         include_integrated_assets: bool,
         include_acknowledgements: bool,
     ) -> Result<Self> {
+        let mut sources: Vec<PathBuf> = source_dirs
+            .iter()
+            .map(|source| source.canonicalize())
+            .collect::<std::io::Result<_>>()?;
+        for source in &sources {
+            if !source.is_dir() {
+                return Err("The automatic asset sources must be directories".into());
+            }
+        }
+        let source_dir = sources
+            .pop()
+            .ok_or("At least one automatic asset source is required")?;
         let mut recipe = Self {
-            source_dir: source_dir.canonicalize()?,
+            source_dir,
+            preceding_source_dirs: sources,
             include_integrated_assets,
             include_acknowledgements,
             fingerprint: String::new(),
         };
-        if !recipe.source_dir.is_dir() {
-            return Err("The automatic asset source must be a directory".into());
-        }
         recipe.fingerprint = recipe.current_fingerprint(cache_dir)?;
         Ok(recipe)
+    }
+
+    fn source_dirs(&self) -> impl Iterator<Item = &Path> {
+        self.preceding_source_dirs
+            .iter()
+            .chain(std::iter::once(&self.source_dir))
+            .map(PathBuf::as_path)
     }
 
     fn current_fingerprint(&self, cache_dir: &Path) -> Result<String> {
         let mut hash = DefaultHasher::new();
         clap::crate_version!().hash(&mut hash);
-        self.source_dir.hash(&mut hash);
         self.include_integrated_assets.hash(&mut hash);
         self.include_acknowledgements.hash(&mut hash);
         let cache_dir = cache_dir.canonicalize().ok();
         let mut buffer = [0; 64 * 1024];
-        let entries = walkdir::WalkDir::new(&self.source_dir)
-            .follow_links(true)
-            .sort_by_file_name()
-            .into_iter()
-            .filter_entry(|entry| {
-                if entry.depth() == 0 {
-                    return true;
-                }
-                if entry.file_name() == ".git" {
-                    return false;
-                }
-                if let Some(cache_dir) = &cache_dir {
-                    if *cache_dir != self.source_dir && entry.path() == cache_dir {
+        for source_dir in self.source_dirs() {
+            source_dir.hash(&mut hash);
+            let entries = walkdir::WalkDir::new(source_dir)
+                .follow_links(true)
+                .sort_by_file_name()
+                .into_iter()
+                .filter_entry(|entry| {
+                    if entry.depth() == 0 {
+                        return true;
+                    }
+                    if entry.file_name() == ".git" {
                         return false;
                     }
+                    if let Some(cache_dir) = &cache_dir {
+                        if cache_dir != source_dir && entry.path() == cache_dir {
+                            return false;
+                        }
+                    }
+                    // A source can also be the cache target (as with assets/create.sh).
+                    if entry.depth() == 1 {
+                        return ![
+                            RECIPE,
+                            GENERATIONS,
+                            "metadata.yaml",
+                            "syntaxes.bin",
+                            "themes.bin",
+                            "acknowledgements.bin",
+                        ]
+                        .iter()
+                        .any(|name| entry.file_name() == *name);
+                    }
+                    true
+                });
+            for entry in entries {
+                let entry = entry.map_err(|error| {
+                    format!("Could not inspect automatic asset sources: {error}")
+                })?;
+                if !entry.file_type().is_file() {
+                    continue;
                 }
-                // A source can also be the cache target (as with assets/create.sh).
-                if entry.depth() == 1 {
-                    return ![
-                        RECIPE,
-                        GENERATIONS,
-                        "metadata.yaml",
-                        "syntaxes.bin",
-                        "themes.bin",
-                        "acknowledgements.bin",
-                    ]
-                    .iter()
-                    .any(|name| entry.file_name() == *name);
+                entry
+                    .path()
+                    .strip_prefix(source_dir)
+                    .map_err(|error| format!("Invalid asset source path: {error}"))?
+                    .hash(&mut hash);
+                let mut file = File::open(entry.path())?;
+                file.metadata()?.len().hash(&mut hash);
+                loop {
+                    let size = file.read(&mut buffer)?;
+                    if size == 0 {
+                        break;
+                    }
+                    hash.write(&buffer[..size]);
                 }
-                true
-            });
-        for entry in entries {
-            let entry = entry
-                .map_err(|error| format!("Could not inspect automatic asset sources: {error}"))?;
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            entry
-                .path()
-                .strip_prefix(&self.source_dir)
-                .map_err(|error| format!("Invalid asset source path: {error}"))?
-                .hash(&mut hash);
-            let mut file = File::open(entry.path())?;
-            file.metadata()?.len().hash(&mut hash);
-            loop {
-                let size = file.read(&mut buffer)?;
-                if size == 0 {
-                    break;
-                }
-                hash.write(&buffer[..size]);
             }
         }
         Ok(format!("{:016x}", hash.finish()))
@@ -170,10 +192,11 @@ pub(crate) fn load(cache_dir: &Path) -> Result<Option<HighlightingAssets>> {
         .current_dir(stage.path())
         .arg("cache")
         .arg("--build")
-        .arg("--source")
-        .arg(&recipe.source_dir)
         .arg("--target")
         .arg(stage.path());
+    for source in recipe.source_dirs() {
+        command.arg("--source").arg(source);
+    }
     if !recipe.include_integrated_assets {
         command.arg("--blank");
     }
@@ -183,8 +206,8 @@ pub(crate) fn load(cache_dir: &Path) -> Result<Option<HighlightingAssets>> {
     let output = command.output()?;
     if !output.status.success() {
         return Err(format!(
-            "Could not automatically rebuild custom assets from '{}':\n{}{}",
-            recipe.source_dir.display(),
+            "Could not automatically rebuild custom assets from {:?}:\n{}{}",
+            recipe.source_dirs().collect::<Vec<_>>(),
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr),
         )

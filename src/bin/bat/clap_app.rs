@@ -792,9 +792,10 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .arg(
                     Arg::new("source")
                         .long("source")
+                        .action(ArgAction::Append)
                         .requires("build")
                         .value_name("dir")
-                        .help("Use a different directory to load syntaxes and themes from."),
+                        .help("Load syntaxes and themes from this directory. Repeat for multiple sources; later sources take precedence."),
                 )
                 .arg(
                     Arg::new("target")

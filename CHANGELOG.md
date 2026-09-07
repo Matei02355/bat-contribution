@@ -9,6 +9,8 @@
 
 ## Features
 
+- Support combining system and user asset directories with repeated `cache --source`; automatic rebuilds track every source, see #3979 (@Matei02355)
+
 - Opt into automatic rebuilding of custom assets after source or version changes with `bat cache --build --automatic`, see #3979 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
