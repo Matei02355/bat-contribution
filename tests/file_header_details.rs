@@ -33,8 +33,17 @@ fn file_details_report_source_path_time_and_permissions() {
         .clone();
     let output = String::from_utf8(output).unwrap();
     assert!(output.contains("File: virtual.json\n"), "{output}");
-    assert!(
-        output.contains(&format!("Path: {}\n", path.display())),
+    let rendered_path = output
+        .lines()
+        .find_map(|line| line.strip_prefix("Path: "))
+        .expect("the header should include the source path");
+    let rendered_path = std::path::Path::new(rendered_path);
+    assert!(rendered_path.is_absolute(), "{output}");
+    // Windows may render an extended-length path prefix. Compare the actual
+    // source files rather than the spelling of their equivalent paths.
+    assert_eq!(
+        rendered_path.canonicalize().unwrap(),
+        path.canonicalize().unwrap(),
         "{output}"
     );
     assert!(
