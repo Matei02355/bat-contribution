@@ -1,34 +1,30 @@
 --- syntaxes/01_Packages/ShellScript/Bash.sublime-syntax
 +++ syntaxes/01_Packages/ShellScript/Bash.sublime-syntax
-@@ -30,12 +30,12 @@
-   - .zshenv
-   - .zshrc
-   - PKGBUILD  # https://jlk.fjfi.cvut.cz/arch/manpages/man/PKGBUILD.5
+@@ -33,2 +33,2 @@
 -  - .ebuild
 -  - .eclass
 +  - ebuild
 +  - eclass
- 
- first_line_match: |
-   (?x)
+@@ -38 +38 @@
 -    ^\#! .* \b(bash|zsh|sh|tcsh|ash)\b
 +    ^\#! .* \b(bash|zsh|sh|tcsh|ash|dash|ksh)\b
-   | ^\# \s* -\*- [^*]* mode: \s* shell-script [^*]* -\*-
- 
- #-------------------------------------------------------------------------------
-@@ -341,7 +341,7 @@
-         1: support.function.alias.shell
-       push:
-       - vardef-ensure-function-call-scope
+@@ -159,0 +160,3 @@
++    - match: \bselect{{keyword_break}}
++      scope: keyword.control.loop.select.shell
++      set: [cmd-post, select-args]
+@@ -259,0 +263,8 @@
++  select-args:
++    - match: ""
++      set:
++        - meta_scope: meta.group.select.shell
++        - include: cmd-args-boilerplate
++        - match: \bin{{keyword_break}}
++          scope: keyword.control.in.shell
++
+@@ -344 +355 @@
 -      - vardef-maybe-more
 +      - vardef-alias-maybe-more
-       - vardef-value
-       - vardef-assign
-       - vardef-alias-name
-@@ -414,8 +414,20 @@
-     - match: (?=\S)
-       push: [vardef-value, vardef-assign, vardef-name]
- 
+@@ -416,0 +428,8 @@
 +  vardef-alias-maybe-more:
 +    - meta_include_prototype: false
 +    - match: (?=`|\s*#)
@@ -37,22 +33,13 @@
 +    - match: (?=\S)
 +      push: [vardef-value, vardef-assign, vardef-alias-name]
 +
-   vardef-alias-options:
+@@ -418 +437,5 @@
 -    - match: \s*((-)p)
 +    - match: \s*(--)(?=\s|$)
 +      captures:
 +        1: keyword.operator.end-of-options.shell
 +      pop: true
 +    - match: \s*((-)p)(?=\s|$)
-       captures:
-         2: punctuation.definition.parameter.shell
-         1: variable.parameter.option.shell
-@@ -429,7 +441,7 @@
-         - meta_content_scope: entity.name.function.alias.shell
-         - include: line-continuation-or-pop-at-end
-         - include: any-escape
+@@ -432 +455 @@
 -        - match: (?={{varassign}}|\s)|$
 +        - match: (?==|\s|[;&`]|{{metachar}})|$
-           pop: true
-         - include: array
-         - match: \s*$
