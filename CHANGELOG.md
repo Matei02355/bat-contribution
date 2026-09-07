@@ -16,6 +16,8 @@
 
 ## Features
 
+- Add a notebook preview preprocessor example and document binary string previews with `--process`, see #3967 (@Matei02355)
+
 - Load custom VS Code JSON themes with relative includes, token colors, and JSONC syntax, see #3975 (@Matei02355)
 
 - Accept optional TOML configuration files while preserving existing config-file precedence, see #3971 (@Matei02355)
@@ -73,6 +75,8 @@
 - Highlight Markdown alert and callout headings, see #3977 (@Matei02355)
 - Opt into automatic rebuilding of custom assets after source or version changes with `bat cache --build --automatic`, see #3979 (@Matei02355)
 - Add `--grayscale` and `PrettyPrinter::grayscale()` to use any theme with neutral colors, see #3980 (@Matei02355)
+
+- Highlight Python execution traces with source locations, timing, and embedded code, see #3981 (@Matei02355)
 
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)

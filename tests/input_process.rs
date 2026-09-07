@@ -11,6 +11,120 @@ fn child_bat(args: &str) -> String {
     )
 }
 
+#[cfg(unix)]
+fn notebook_filter() -> String {
+    format!(
+        "python3 {}",
+        shell_words::quote(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/notebook-preview.py"
+        ))
+    )
+}
+
+#[test]
+#[cfg(unix)]
+fn notebook_preview_preserves_cells_outputs_and_embedded_fences() {
+    let expected = "## Cell 1\n\n# Notebook café\nSaved analysis\n\n## Cell 2\n\n````python\nprint('hello')\n# embedded ``` fence\n````\n\n```text\nhello world\n```\n\n```text\n42\n```\n\n```text\n[Output: image/png]\n```\n\n```text\nTraceback line 1\nValueError: bad\n```\n\n## Cell 3\n\n````text\nraw ``` fence\n````\n";
+    bat()
+        .args([
+            "--process",
+            &notebook_filter(),
+            "--language=markdown",
+            "--style=plain",
+            "--color=never",
+            "notebook-preview.ipynb",
+        ])
+        .assert()
+        .success()
+        .stdout(expected)
+        .stderr("");
+}
+
+#[test]
+#[cfg(unix)]
+fn notebook_preview_handles_missing_metadata_and_invalid_inputs() {
+    use predicates::prelude::*;
+
+    bat()
+        .args([
+            "--process",
+            &notebook_filter(),
+            "--language=markdown",
+            "--style=plain",
+            "--color=never",
+        ])
+        .write_stdin(r#"{"nbformat":4,"cells":[{"cell_type":"code","source":"x"}]}"#)
+        .assert()
+        .success()
+        .stdout("## Cell 1\n\n```text\nx\n```\n")
+        .stderr("");
+    for invalid in [
+        "{",
+        r#"{"nbformat":3,"cells":[]}"#,
+        r#"{"nbformat":4,"cells":{}}"#,
+        r#"{"nbformat":4,"cells":[{"cell_type":"markdown","source":"valid first cell"},{"cell_type":"code","source":[7]}]}"#,
+    ] {
+        bat()
+            .args([
+                "--process",
+                &notebook_filter(),
+                "--style=plain",
+                "--color=never",
+            ])
+            .write_stdin(invalid)
+            .assert()
+            .failure()
+            .stdout("")
+            .stderr(predicate::str::contains("notebook-preview:"));
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn binary_strings_filter_reads_bytes_without_executing_the_input() {
+    use predicates::prelude::*;
+
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("binary input");
+    std::fs::write(
+        &file,
+        b"\x7fELF\0\x01\x02printable payload\0\xff\0second marker\0",
+    )
+    .unwrap();
+    bat()
+        .args([
+            "--process",
+            "strings -a",
+            "--language=txt",
+            "--decorations=always",
+            "--style=header",
+            "--terminal-width=200",
+            "--color=never",
+        ])
+        .arg(&file)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("binary input")
+                .and(predicate::str::contains("printable payload\n"))
+                .and(predicate::str::contains("second marker\n")),
+        )
+        .stderr("");
+    bat()
+        .args([
+            "--process",
+            "strings -a",
+            "--language=txt",
+            "--style=plain",
+            "--color=never",
+        ])
+        .write_stdin(b"\0stdin marker\0" as &[u8])
+        .assert()
+        .success()
+        .stdout("stdin marker\n");
+}
+
 #[test]
 fn filters_run_per_file_and_retain_names_and_syntax() {
     let dir = tempfile::tempdir().unwrap();
@@ -22,6 +136,7 @@ fn filters_run_per_file_and_retain_names_and_syntax() {
         .args([
             "--decorations=always",
             "--style=header",
+            "--terminal-width=200",
             "--color=always",
             "--process",
         ])
@@ -67,6 +182,7 @@ fn stdin_and_explicit_names_are_filtered() {
         .args([
             "--color=never",
             "--style=header",
+            "--terminal-width=200",
             "--decorations=always",
             "--file-name=logical.json",
             "--process",
