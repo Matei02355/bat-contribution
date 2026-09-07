@@ -454,6 +454,24 @@ bat --completion <shell>
 # see --help for supported shells
 ```
 
+### Editor modelines
+
+Bat recognizes a language hint on the first line, such as `# -*- python -*-`,
+`# -*- mode: python; -*-`, or `# vim: set filetype=python:` (also `ft=` and `syntax=`).
+The language uses the names and extensions from `--list-languages`. A recognized
+hint overrides a filename extension; explicit `--language` and syntax mappings
+take precedence. Unknown hints fall back to normal detection. Only the first line
+is examined, including for stdin; editor settings are never executed.
+
+### Styles for different inputs
+
+Use `--style-single-file`, `--style-stdin`, and `--style-multiple-files` to select
+styles by input type. For example, configure `--style-single-file=plain` and
+`--style-stdin=plain` with `--style-multiple-files=header,rule` to show filenames
+only when concatenating several inputs. A mixture of files and stdin uses the
+multiple-file style throughout. Each context supports the same `+`/`-` modifiers
+as `--style`; explicit plain and numbering flags still take precedence.
+
 ## Customization
 
 ### Highlighting theme
@@ -760,6 +778,13 @@ export BAT_CONFIG_PATH="/path/to/bat/bat.conf"
 export BAT_CONFIG_DIR="/path/to/bat"
 ```
 
+On every platform, including Windows, absolute `XDG_CONFIG_HOME` and `XDG_CACHE_HOME`
+values select `<XDG_CONFIG_HOME>/bat` and `<XDG_CACHE_HOME>/bat`. The bat-specific
+`BAT_CONFIG_DIR` and `BAT_CACHE_PATH` overrides take precedence. Empty or relative
+XDG paths are ignored. Without these overrides, Windows uses its native application
+data folders. For MSYS2 or Git Bash, use a Windows path such as `C:/msys64/home/me/.config`
+for `XDG_CONFIG_HOME`.
+
 A default configuration file can be created with the `--generate-config-file` option.
 ```bash
 bat --generate-config-file
@@ -768,6 +793,14 @@ bat --generate-config-file
 There is also now a systemwide configuration file, which is located under `/etc/bat/config` on
 Linux and Mac OS and `C:\ProgramData\bat\config` on windows. If the system wide configuration
 file is present, the content of the user configuration will simply be appended to it.
+Pass `--no-system-config` on the command line to load only the user configuration.
+
+To inspect the merged configuration arguments from config files, environment
+variables, and the command line, run `bat --show-config`. Query one field with
+`bat --show-config theme` (or `bat --config theme`). Repeated options are listed
+in order, and automatic modes remain as configured. The full listing omits
+parser defaults; a single-field query includes its parser default when available.
+An unset field produces no output.
 
 ### Format
 
@@ -905,6 +938,13 @@ If you want to build an application that uses `bat`'s pretty-printing
 features as a library, check out the [API documentation](https://docs.rs/bat/).
 Note that you have to use either `regex-onig` or `regex-fancy` as a feature
 when you depend on `bat` as a library.
+
+`PrettyPrinter::new()` uses embedded syntaxes and themes. To use a custom cache
+built with `bat cache --build`, construct the printer with
+`PrettyPrinter::from_cache(cache_directory)?`. Callers managing their own
+`HighlightingAssets` can use `PrettyPrinter::with_assets(assets)?` instead. Both
+constructors validate cached syntaxes before returning; they do not read CLI
+configuration or select a cache directory from the environment.
 
 ## Contributing
 

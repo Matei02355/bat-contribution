@@ -16,13 +16,15 @@ use content_inspector::ContentType;
 use encoding_rs::{UTF_16BE, UTF_16LE};
 
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthChar;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::assets::{HighlightingAssets, SyntaxReferenceInSet};
 use crate::config::Config;
 #[cfg(feature = "git")]
 use crate::decorations::LineChangesDecoration;
-use crate::decorations::{Decoration, GridBorderDecoration, LineNumberDecoration};
+use crate::decorations::{
+    Decoration, GridBorderDecoration, HighlightIndicatorDecoration, LineNumberDecoration,
+};
 #[cfg(feature = "git")]
 use crate::diff::LineChanges;
 use crate::error::*;
@@ -30,8 +32,8 @@ use crate::input::OpenedInput;
 use crate::line_range::{MaxBufferedLineNumber, RangeCheckResult};
 use crate::output::OutputHandle;
 use crate::preprocessor::{
-    expand_tabs, replace_nonprintable, sanitize, sanitize_for_terminal, strip_ansi,
-    strip_overstrike,
+    expand_tabs, replace_nonprintable, replace_nonprintable_with_ranges, sanitize,
+    sanitize_for_terminal, strip_ansi, strip_overstrike,
 };
 use crate::style::StyleComponent;
 use crate::terminal::{as_terminal_escaped, to_ansi_color};
@@ -39,6 +41,51 @@ use crate::vscreen::{AnsiStyle, EscapeSequence, EscapeSequenceIterator};
 use crate::wrapping::WrappingMode;
 use crate::BinaryBehavior;
 use crate::StripAnsiMode;
+
+fn format_permissions(permissions: &std::fs::Permissions) -> String {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = permissions.mode();
+        let mut chars: Vec<char> = [
+            (0o400, 'r'),
+            (0o200, 'w'),
+            (0o100, 'x'),
+            (0o040, 'r'),
+            (0o020, 'w'),
+            (0o010, 'x'),
+            (0o004, 'r'),
+            (0o002, 'w'),
+            (0o001, 'x'),
+        ]
+        .into_iter()
+        .map(|(bit, ch)| if mode & bit != 0 { ch } else { '-' })
+        .collect();
+        for (bit, index, executable, non_executable) in [
+            (0o4000, 2, 's', 'S'),
+            (0o2000, 5, 's', 'S'),
+            (0o1000, 8, 't', 'T'),
+        ] {
+            if mode & bit != 0 {
+                chars[index] = if chars[index] == 'x' {
+                    executable
+                } else {
+                    non_executable
+                };
+            }
+        }
+        chars.into_iter().collect()
+    }
+    #[cfg(not(unix))]
+    {
+        if permissions.readonly() {
+            "read-only"
+        } else {
+            "read-write"
+        }
+        .to_owned()
+    }
+}
 
 // Return the displayed width of a character.
 //
@@ -88,6 +135,10 @@ pub(crate) trait Printer {
         add_header_padding: bool,
     ) -> Result<()>;
     fn print_footer(&mut self, handle: &mut OutputHandle, input: &OpenedInput) -> Result<()>;
+
+    fn print_missing_newline_warning(&mut self, _handle: &mut OutputHandle) -> Result<()> {
+        Ok(())
+    }
 
     fn print_snip(&mut self, handle: &mut OutputHandle) -> Result<()>;
 
@@ -187,6 +238,8 @@ impl Printer for SimplePrinter<'_> {
 struct HighlighterFromSet<'a> {
     highlighter: HighlightLines<'a>,
     syntax_set: &'a SyntaxSet,
+    syntax: &'a syntect::parsing::SyntaxReference,
+    theme: &'a Theme,
 }
 
 impl<'a> HighlighterFromSet<'a> {
@@ -194,6 +247,8 @@ impl<'a> HighlighterFromSet<'a> {
         Self {
             highlighter: HighlightLines::new(syntax_in_set.syntax, theme),
             syntax_set: syntax_in_set.syntax_set,
+            syntax: syntax_in_set.syntax,
+            theme,
         }
     }
 }
@@ -209,22 +264,30 @@ pub(crate) struct InteractivePrinter<'a> {
     pub line_changes: &'a Option<LineChanges>,
     highlighter_from_set: Option<HighlighterFromSet<'a>>,
     background_color_highlight: Option<Color>,
+    pub(crate) highlight_this_line: bool,
     consecutive_empty_lines: usize,
     strip_ansi: bool,
     sanitize: bool,
     strip_overstrike: bool,
+    plain_style: syntect::highlighting::Style,
+    hyperlink_path: Option<String>,
+    highlighted_line: bool,
 }
 
 impl<'a> InteractivePrinter<'a> {
     pub(crate) fn new(
         config: &'a Config,
         assets: &'a HighlightingAssets,
+        custom_theme: Option<&'a Theme>,
         input: &mut OpenedInput,
         #[cfg(feature = "git")] line_changes: &'a Option<LineChanges>,
     ) -> Result<Self> {
-        let theme = assets.get_theme(&config.theme);
+        let theme = custom_theme.unwrap_or_else(|| assets.get_theme(&config.theme));
 
-        let background_color_highlight = theme.settings.line_highlight;
+        let background_color_highlight = theme
+            .settings
+            .line_highlight
+            .filter(|_| config.colored_output);
 
         let colors = if config.colored_output {
             Colors::colored(theme, config.true_color)
@@ -234,6 +297,12 @@ impl<'a> InteractivePrinter<'a> {
 
         // Create decorations.
         let mut decorations: Vec<Box<dyn Decoration>> = Vec::new();
+
+        if config.style_components.highlight_indicator()
+            && (!config.highlighted_lines.0.is_empty() || !config.highlighted_patterns.is_empty())
+        {
+            decorations.push(Box::new(HighlightIndicatorDecoration));
+        }
 
         if config.style_components.numbers() {
             decorations.push(Box::new(LineNumberDecoration::new(&colors)));
@@ -254,7 +323,7 @@ impl<'a> InteractivePrinter<'a> {
         // The grid border decoration isn't added until after the panel_width calculation, since the
         // print_horizontal_line, print_header, and print_footer functions all assume the panel
         // width is without the grid border.
-        if config.style_components.grid() && !decorations.is_empty() {
+        if config.style_components.grid_vertical() && !decorations.is_empty() {
             decorations.push(Box::new(GridBorderDecoration::new(&colors)));
         }
 
@@ -332,6 +401,13 @@ impl<'a> InteractivePrinter<'a> {
         };
 
         Ok(InteractivePrinter {
+            plain_style: syntect::highlighting::Highlighter::new(theme).get_default(),
+            hyperlink_path: config
+                .hyperlink
+                .as_ref()
+                .and_then(|_| input.path())
+                .and_then(|path| crate::hyperlink::encode_path(path)),
+            highlighted_line: false,
             panel_width,
             colors,
             config,
@@ -342,6 +418,7 @@ impl<'a> InteractivePrinter<'a> {
             line_changes,
             highlighter_from_set,
             background_color_highlight,
+            highlight_this_line: false,
             consecutive_empty_lines: 0,
             strip_ansi,
             sanitize,
@@ -354,6 +431,9 @@ impl<'a> InteractivePrinter<'a> {
         handle: &mut OutputHandle,
         style: Style,
     ) -> Result<()> {
+        if self.config.compact_headers {
+            return Ok(());
+        }
         writeln!(
             handle,
             "{}",
@@ -363,6 +443,9 @@ impl<'a> InteractivePrinter<'a> {
     }
 
     fn print_horizontal_line(&mut self, handle: &mut OutputHandle, grid_char: char) -> Result<()> {
+        if self.config.compact_headers {
+            return Ok(());
+        }
         if self.panel_width == 0 {
             self.print_horizontal_line_term(handle, self.colors.grid)?;
         } else {
@@ -384,7 +467,7 @@ impl<'a> InteractivePrinter<'a> {
             "{text_truncated}{}",
             " ".repeat(self.panel_width - 1 - text_truncated.len())
         );
-        if self.config.style_components.grid() {
+        if self.config.style_components.grid_vertical() {
             format!("{text_filled} │ ")
         } else {
             text_filled
@@ -392,7 +475,7 @@ impl<'a> InteractivePrinter<'a> {
     }
 
     fn get_header_component_indent_length(&self) -> usize {
-        if self.config.style_components.grid() && self.panel_width > 0 {
+        if self.config.style_components.grid_vertical() && self.panel_width > 0 {
             self.panel_width + 2
         } else {
             self.panel_width
@@ -400,7 +483,7 @@ impl<'a> InteractivePrinter<'a> {
     }
 
     fn print_header_component_indent(&mut self, handle: &mut OutputHandle) -> Result<()> {
-        if self.config.style_components.grid() {
+        if self.config.style_components.grid_vertical() {
             write!(
                 handle,
                 "{}{}",
@@ -418,9 +501,14 @@ impl<'a> InteractivePrinter<'a> {
         &mut self,
         handle: &mut OutputHandle,
         content: &str,
+        uri: Option<&str>,
     ) -> Result<()> {
         self.print_header_component_indent(handle)?;
-        writeln!(handle, "{content}")
+        if let Some(uri) = uri {
+            writeln!(handle, "{}", crate::hyperlink::link(uri, content))
+        } else {
+            writeln!(handle, "{content}")
+        }
     }
 
     fn print_header_multiline_component(
@@ -428,18 +516,58 @@ impl<'a> InteractivePrinter<'a> {
         handle: &mut OutputHandle,
         content: &str,
     ) -> Result<()> {
-        let content_width = self.config.term_width - self.get_header_component_indent_length();
-        if content.chars().count() <= content_width {
-            return self.print_header_component_with_indent(handle, content);
-        }
+        self.print_header_multiline_component_linked(handle, content, None)
+    }
 
-        let mut content_graphemes: Vec<&str> = content.graphemes(true).collect();
-        while content_graphemes.len() > content_width {
-            let (content_line, remaining) = content_graphemes.split_at(content_width);
-            self.print_header_component_with_indent(handle, content_line.join("").as_str())?;
-            content_graphemes = remaining.to_vec();
+    fn print_header_multiline_component_linked(
+        &mut self,
+        handle: &mut OutputHandle,
+        content: &str,
+        uri: Option<&str>,
+    ) -> Result<()> {
+        if self.config.compact_headers {
+            return if let Some(uri) = uri {
+                writeln!(handle, "{}", crate::hyperlink::link(uri, content))
+            } else {
+                writeln!(handle, "{content}")
+            };
         }
-        self.print_header_component_with_indent(handle, content_graphemes.join("").as_str())
+        let content_width = self
+            .config
+            .term_width
+            .saturating_sub(self.get_header_component_indent_length())
+            .max(1);
+        let mut column = 0;
+        let mut style = AnsiStyle::new();
+        let mut line = String::new();
+        for chunk in EscapeSequenceIterator::new(content) {
+            if let EscapeSequence::Text(text) = chunk {
+                for grapheme in text.graphemes(true) {
+                    let width = UnicodeWidthStr::width(grapheme);
+                    if column > 0 && column + width > content_width {
+                        line.push_str(&style.to_reset_sequence());
+                        self.print_header_component_with_indent(handle, &line, uri)?;
+                        line = style.to_string();
+                        column = 0;
+                    }
+                    line.push_str(grapheme);
+                    column += width;
+                }
+            } else {
+                line.push_str(chunk.raw());
+                style.update(chunk);
+            }
+        }
+        self.print_header_component_with_indent(handle, &line, uri)
+    }
+
+    pub(crate) fn link_line_number(&self, text: String, line: usize) -> String {
+        match (&self.config.hyperlink, &self.hyperlink_path) {
+            (Some(link), Some(path)) if !link.highlighted_only || self.highlighted_line => {
+                crate::hyperlink::link(&link.uri(path, line), &text)
+            }
+            _ => text,
+        }
     }
 
     fn highlight_regions_for_line<'b>(
@@ -450,6 +578,16 @@ impl<'a> InteractivePrinter<'a> {
             Some(ref mut highlighter_from_set) => highlighter_from_set,
             _ => return Ok(vec![(EMPTY_SYNTECT_STYLE, line)]),
         };
+
+        if self
+            .config
+            .syntax_delimiter
+            .as_ref()
+            .is_some_and(|delimiter| delimiter.is_match(line.trim_end_matches(['\r', '\n'])))
+        {
+            highlighter_from_set.highlighter =
+                HighlightLines::new(highlighter_from_set.syntax, highlighter_from_set.theme);
+        }
 
         // skip syntax highlighting on long lines
         let too_long = line.len() > 1024 * 16;
@@ -475,9 +613,115 @@ impl<'a> InteractivePrinter<'a> {
         *cursor += text.len();
         text.to_string()
     }
+
+    fn print_truncated_line(
+        &mut self,
+        handle: &mut OutputHandle,
+        regions: &[(syntect::highlighting::Style, &str)],
+        width: usize,
+        background_color: Option<Color>,
+    ) -> Result<()> {
+        let tab_width = if self.config.tab_width == 0 {
+            8
+        } else {
+            self.config.tab_width
+        };
+        let mut total_width = 0;
+        let mut expanded = Vec::with_capacity(regions.len());
+
+        // Measure the complete line before reserving a column for the marker.
+        // Keep ANSI sequences intact and expand tabs using visible columns.
+        for &(style, region) in regions {
+            let mut text = String::new();
+            for chunk in EscapeSequenceIterator::new(region) {
+                if let EscapeSequence::Text(raw) = chunk {
+                    for grapheme in raw.trim_end_matches(['\r', '\n']).graphemes(true) {
+                        if grapheme == "\t" {
+                            let spaces = tab_width - total_width % tab_width;
+                            text.push_str(&" ".repeat(spaces));
+                            total_width += spaces;
+                        } else {
+                            text.push_str(grapheme);
+                            total_width += UnicodeWidthStr::width(grapheme);
+                        }
+                    }
+                } else {
+                    text.push_str(chunk.raw());
+                }
+            }
+            expanded.push((style, text));
+        }
+
+        let truncated = total_width > width;
+        let available = width.saturating_sub(usize::from(truncated));
+        let mut column = 0;
+        let mut clipped = false;
+        for (style, region) in &expanded {
+            for chunk in EscapeSequenceIterator::new(region) {
+                if let EscapeSequence::Text(text) = chunk {
+                    if clipped {
+                        continue;
+                    }
+                    let mut end = 0;
+                    for grapheme in text.graphemes(true) {
+                        let grapheme_width = UnicodeWidthStr::width(grapheme);
+                        if column + grapheme_width > available {
+                            clipped = true;
+                            break;
+                        }
+                        column += grapheme_width;
+                        end += grapheme.len();
+                    }
+                    if end > 0 {
+                        write!(
+                            handle,
+                            "{}{}",
+                            as_terminal_escaped(
+                                *style,
+                                &format!("{}{}", self.ansi_style, &text[..end]),
+                                self.config.true_color,
+                                self.config.colored_output,
+                                self.config.use_italic_text,
+                                background_color,
+                            ),
+                            self.ansi_style.to_reset_sequence(),
+                        )?;
+                    }
+                } else {
+                    // Even omitted escape sequences can affect following lines.
+                    if !clipped && column < available {
+                        write!(handle, "{}", chunk.raw())?;
+                    }
+                    self.ansi_style.update(chunk);
+                }
+            }
+        }
+
+        write!(handle, "{}", self.ansi_style.to_reset_sequence())?;
+        let mut marker_style = Style::default();
+        if self.config.colored_output {
+            marker_style = marker_style.bold();
+        }
+        marker_style.background =
+            background_color.and_then(|color| to_ansi_color(color, self.config.true_color));
+        if truncated && width > 0 {
+            write!(
+                handle,
+                "{}",
+                marker_style.paint(format!("{}…", " ".repeat(available - column)))
+            )?;
+        } else if background_color.is_some() {
+            write!(handle, "{}", marker_style.paint(" ".repeat(width - column)))?;
+        }
+        writeln!(handle)
+    }
 }
 
 impl Printer for InteractivePrinter<'_> {
+    fn print_missing_newline_warning(&mut self, handle: &mut OutputHandle) -> Result<()> {
+        self.print_header_multiline_component(handle, "[No newline at end of file]")
+    }
+
     fn print_header(
         &mut self,
         handle: &mut OutputHandle,
@@ -490,7 +734,12 @@ impl Printer for InteractivePrinter<'_> {
         }
 
         if add_header_padding && self.config.style_components.rule() {
-            self.print_horizontal_line_term(handle, self.colors.rule)?;
+            if self.config.style_components.grid_vertical() && !self.config.style_components.grid()
+            {
+                self.print_horizontal_line(handle, '┼')?;
+            } else {
+                self.print_horizontal_line_term(handle, self.colors.rule)?;
+            }
         }
 
         if !self.config.style_components.header() {
@@ -534,6 +783,18 @@ impl Printer for InteractivePrinter<'_> {
                 StyleComponent::HeaderFilesize,
                 self.config.style_components.header_filesize(),
             ),
+            (
+                StyleComponent::HeaderPath,
+                self.config.style_components.header_path(),
+            ),
+            (
+                StyleComponent::HeaderModified,
+                self.config.style_components.header_modified(),
+            ),
+            (
+                StyleComponent::HeaderPermissions,
+                self.config.style_components.header_permissions(),
+            ),
         ]
         .iter()
         .filter(|(_, is_enabled)| *is_enabled)
@@ -545,7 +806,10 @@ impl Printer for InteractivePrinter<'_> {
             self.print_horizontal_line(handle, '┬')?;
         } else {
             // Only pad space between files, if we haven't already drawn a horizontal rule
-            if add_header_padding && !self.config.style_components.rule() {
+            if add_header_padding
+                && !self.config.style_components.rule()
+                && !self.config.compact_headers
+            {
                 writeln!(handle)?;
             }
         }
@@ -554,17 +818,37 @@ impl Printer for InteractivePrinter<'_> {
             .iter()
             .try_for_each(|component| match component {
                 StyleComponent::HeaderFilename => {
-                    let header_filename = format!(
-                        "{}{}{mode}",
-                        description
-                            .kind()
-                            .map(|kind| format!("{}: ", sanitize_for_terminal(kind)))
-                            .unwrap_or_else(|| "".into()),
-                        self.colors
-                            .header_value
-                            .paint(sanitize_for_terminal(description.title())),
-                    );
-                    self.print_header_multiline_component(handle, &header_filename)
+                    let header_filename = if self.config.compact_headers {
+                        format!(
+                            "===> {}{mode} <===",
+                            self.colors
+                                .header_value
+                                .paint(sanitize_for_terminal(description.title()))
+                        )
+                    } else {
+                        format!(
+                            "{}{}{mode}",
+                            description
+                                .kind()
+                                .map(|kind| format!("{}: ", sanitize_for_terminal(kind)))
+                                .unwrap_or_else(|| "".into()),
+                            self.colors
+                                .header_value
+                                .paint(sanitize_for_terminal(description.title())),
+                        )
+                    };
+                    let uri = self
+                        .config
+                        .hyperlink
+                        .as_ref()
+                        .filter(|link| !link.highlighted_only)
+                        .zip(self.hyperlink_path.as_ref())
+                        .map(|(link, path)| link.uri(path, 1));
+                    self.print_header_multiline_component_linked(
+                        handle,
+                        &header_filename,
+                        uri.as_deref(),
+                    )
                 }
                 StyleComponent::HeaderFilesize => {
                     let bsize = metadata
@@ -574,6 +858,49 @@ impl Printer for InteractivePrinter<'_> {
                     let header_filesize =
                         format!("Size: {}", self.colors.header_value.paint(bsize));
                     self.print_header_multiline_component(handle, &header_filesize)
+                }
+                StyleComponent::HeaderPath => {
+                    let path = match &input.kind {
+                        crate::input::OpenedInputKind::OrdinaryFile(path) => {
+                            path_abs::PathAbs::new(path)
+                                .ok()
+                                .map(|path| path.as_path().to_string_lossy().into_owned())
+                        }
+                        _ => None,
+                    }
+                    .unwrap_or_else(|| "-".into());
+                    self.print_header_multiline_component(
+                        handle,
+                        &format!(
+                            "Path: {}",
+                            self.colors.header_value.paint(sanitize_for_terminal(&path))
+                        ),
+                    )
+                }
+                StyleComponent::HeaderModified => {
+                    let modified = metadata
+                        .modified
+                        .and_then(|time| jiff::Timestamp::try_from(time).ok())
+                        .map(|time| time.strftime("%Y-%m-%d %H:%M:%S UTC").to_string())
+                        .unwrap_or_else(|| "-".into());
+                    self.print_header_multiline_component(
+                        handle,
+                        &format!("Modified: {}", self.colors.header_value.paint(modified)),
+                    )
+                }
+                StyleComponent::HeaderPermissions => {
+                    let permissions = metadata
+                        .permissions
+                        .as_ref()
+                        .map(format_permissions)
+                        .unwrap_or_else(|| "-".into());
+                    self.print_header_multiline_component(
+                        handle,
+                        &format!(
+                            "Permissions: {}",
+                            self.colors.header_value.paint(permissions)
+                        ),
+                    )
                 }
                 _ => Ok(()),
             })?;
@@ -653,13 +980,15 @@ impl Printer for InteractivePrinter<'_> {
         line_buffer: &[u8],
         max_buffered_line_number: MaxBufferedLineNumber,
     ) -> Result<()> {
+        let mut replacement_ranges = Vec::new();
         let line = if self.config.show_nonprintable {
-            replace_nonprintable(
+            let (text, ranges) = replace_nonprintable_with_ranges(
                 line_buffer,
                 self.config.tab_width,
                 self.config.nonprintable_notation,
-            )
-            .into()
+            );
+            replacement_ranges = ranges;
+            text.into()
         } else {
             let mut line = match self.content_type {
                 Some(ContentType::BINARY) | None
@@ -698,7 +1027,31 @@ impl Printer for InteractivePrinter<'_> {
             line
         };
 
-        let regions = self.highlight_regions_for_line(&line)?;
+        let mut regions = self.highlight_regions_for_line(&line)?;
+        if self.config.show_nonprintable
+            && self
+                .config
+                .language
+                .is_some_and(|language| language.eq_ignore_ascii_case("show-nonprintable"))
+        {
+            regions = mask_nonprintable_highlighting(
+                &line,
+                regions,
+                &replacement_ranges,
+                self.plain_style,
+            );
+        }
+        if !self.config.use_theme_background {
+            for (style, _) in &mut regions {
+                // Alpha 1 requests the terminal's default background.
+                style.background = Color {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 1,
+                };
+            }
+        }
         if out_of_range {
             return Ok(());
         }
@@ -726,15 +1079,33 @@ impl Printer for InteractivePrinter<'_> {
             .highlighted_lines
             .0
             .check(line_number, max_buffered_line_number)
-            == RangeCheckResult::InRange;
+            == RangeCheckResult::InRange
+            || self
+                .config
+                .highlighted_patterns
+                .iter()
+                .any(|pattern| pattern.is_match(line.trim_end_matches(['\r', '\n'])));
+        self.highlighted_line = highlight_this_line;
 
-        if highlight_this_line && self.config.theme == "ansi" {
+        self.highlight_this_line = highlight_this_line;
+
+        #[cfg(feature = "git")]
+        let highlight_this_line = highlight_this_line
+            || (self.config.colored_output
+                && self.config.style_components.changes_highlight()
+                && u32::try_from(line_number).ok().is_some_and(|line| {
+                    self.line_changes
+                        .as_ref()
+                        .is_some_and(|changes| changes.contains_key(&line))
+                }));
+
+        if highlight_this_line && self.config.colored_output && self.config.theme == "ansi" {
             self.ansi_style.update(ANSI_UNDERLINE_ENABLE);
         }
 
         let background_color = self
             .background_color_highlight
-            .filter(|_| highlight_this_line);
+            .filter(|_| highlight_this_line && self.config.colored_output);
 
         // Line decorations.
         if self.panel_width > 0 {
@@ -757,7 +1128,9 @@ impl Printer for InteractivePrinter<'_> {
         }
 
         // Line contents.
-        if matches!(self.config.wrapping_mode, WrappingMode::NoWrapping(_)) {
+        if self.config.wrapping_mode == WrappingMode::Truncate {
+            self.print_truncated_line(handle, &regions, cursor_max, background_color)?;
+        } else if matches!(self.config.wrapping_mode, WrappingMode::NoWrapping(_)) {
             let true_color = self.config.true_color;
             let colored_output = self.config.colored_output;
             let italics = self.config.use_italic_text;
@@ -971,7 +1344,7 @@ impl Printer for InteractivePrinter<'_> {
             writeln!(handle)?;
         }
 
-        if highlight_this_line && self.config.theme == "ansi" {
+        if highlight_this_line && self.config.colored_output && self.config.theme == "ansi" {
             write!(handle, "{}", ANSI_UNDERLINE_DISABLE.raw())?;
             self.ansi_style.update(ANSI_UNDERLINE_DISABLE);
         }
@@ -1021,5 +1394,54 @@ impl Colors {
             git_modified: Yellow.normal(),
             line_number: gutter_style,
         }
+    }
+}
+
+/// Keep highlighting only on placeholders inserted by the nonprintable preprocessor.
+/// Literal escape spellings in the source retain the theme's normal text style.
+fn mask_nonprintable_highlighting<'a>(
+    line: &'a str,
+    regions: Vec<(syntect::highlighting::Style, &'a str)>,
+    replacements: &[std::ops::Range<usize>],
+    plain: syntect::highlighting::Style,
+) -> Vec<(syntect::highlighting::Style, &'a str)> {
+    let mut result = Vec::new();
+    let mut replacements = replacements.iter().peekable();
+    let mut offset = 0;
+    for (style, region) in regions {
+        let end = offset + region.len();
+        while offset < end {
+            while replacements.peek().is_some_and(|range| range.end <= offset) {
+                replacements.next();
+            }
+            let (boundary, is_replacement) = match replacements.peek() {
+                Some(range) if range.start <= offset => (end.min(range.end), true),
+                Some(range) => (end.min(range.start), false),
+                None => (end, false),
+            };
+            result.push((
+                if is_replacement { style } else { plain },
+                &line[offset..boundary],
+            ));
+            offset = boundary;
+        }
+    }
+    result
+}
+
+#[test]
+#[cfg(unix)]
+fn permission_display_includes_special_mode_bits() {
+    use std::os::unix::fs::PermissionsExt;
+    for (mode, expected) in [
+        (0o000, "---------"),
+        (0o754, "rwxr-xr--"),
+        (0o4754, "rwsr-xr--"),
+        (0o7640, "rwSr-S--T"),
+    ] {
+        assert_eq!(
+            format_permissions(&std::fs::Permissions::from_mode(mode)),
+            expected
+        );
     }
 }

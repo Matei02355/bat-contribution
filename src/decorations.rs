@@ -19,6 +19,32 @@ pub(crate) trait Decoration {
     fn width(&self) -> usize;
 }
 
+/// A text marker keeps selected lines identifiable without terminal colors.
+pub(crate) struct HighlightIndicatorDecoration;
+
+impl Decoration for HighlightIndicatorDecoration {
+    fn generate(
+        &self,
+        _line_number: usize,
+        _continuation: bool,
+        printer: &InteractivePrinter,
+    ) -> DecorationText {
+        DecorationText {
+            text: if printer.highlight_this_line {
+                ">"
+            } else {
+                " "
+            }
+            .to_owned(),
+            width: 1,
+        }
+    }
+
+    fn width(&self) -> usize {
+        1
+    }
+}
+
 pub(crate) struct LineNumberDecoration {
     color: Style,
     cached_wrap: DecorationText,
@@ -43,7 +69,7 @@ impl Decoration for LineNumberDecoration {
         &self,
         line_number: usize,
         continuation: bool,
-        _printer: &InteractivePrinter,
+        printer: &InteractivePrinter,
     ) -> DecorationText {
         if line_number == 0 {
             // Blank line in number-nonblank mode: show empty space instead of a number.
@@ -67,7 +93,7 @@ impl Decoration for LineNumberDecoration {
             let plain: String = format!("{line_number:4}");
             DecorationText {
                 width: plain.len(),
-                text: self.color.paint(plain).to_string(),
+                text: printer.link_line_number(self.color.paint(plain).to_string(), line_number),
             }
         }
     }

@@ -48,6 +48,9 @@ Possible values:
 Do not print any binary content (default)
 .IP "as\-text"
 Treat binary content as normal text
+.IP "skip"
+Omit binary inputs entirely, including their headers and decorations. This also
+applies when output is redirected and takes precedence over '\-\-show-all'.
 .RE
 .HP
 \fB\-\-completion\fR <SHELL>
@@ -70,7 +73,11 @@ language names and file extensions.
 .HP
 \fB\-H\fR, \fB\-\-highlight\-line\fR <N:M>...
 .IP
-Highlight the specified line ranges with a different background color. For example:
+Highlight the specified line ranges with a different background color. Append '~N'
+to select every Nth line, starting at the lower bound (at least line 1).
+For example, '30:40~2' selects 30, 32, 34, 36, 38, 40; '30~2' continues to EOF.
+The same increment syntax is available for '\-\-line-range'. N must be positive.
+For example:
 .RS
 .IP "\-\-highlight\-line 40"
 highlights line 40
@@ -102,14 +109,16 @@ Set the tab width to T spaces. Use a width of 0 to pass tabs through directly
 .HP
 \fB\-\-wrap\fR <mode>
 .IP
-Specify the text\-wrapping mode (*auto*, never, character, word). The '\-\-terminal\-width' option
+Specify the text\-wrapping mode (*auto*, never, character, word, truncate). The '\-\-terminal\-width' option
 can be used in addition to control the output width. In \fBword\fR mode, lines are broken at
 whitespace boundaries. If a single word exceeds the terminal width, it falls back to
-character wrapping.
+character wrapping. In \fBtruncate\fR mode, long lines are cut to the available width
+and end with an ellipsis. Tabs are expanded, using eight columns when '\-\-tabs=0'.
 .HP
 \fB\-S\fR, \fB\-\-chop\-long\-lines\fR
 .IP
-Truncate all lines longer than screen width. Alias for '\-\-wrap=never'.
+Disable wrapping. Alias for '\-\-wrap=never'. The pager may scroll long lines
+horizontally. Use '\-\-wrap=truncate' to truncate output instead.
 .HP
 \fB\-\-terminal\-width\fR <width>
 .IP
@@ -131,12 +140,23 @@ interactive terminal is detected. Possible values: *auto*, never, always.
 Specify when to use ANSI sequences for italic text in the output. Possible values:
 always, *never*.
 .HP
+\fB\-\-theme\-background\fR <when>
+.IP
+Apply the theme's background colors to highlighted text, including individual syntax
+tokens. Highlighted lines take precedence. Requires colored output. Possible values:
+always, *never*.
+.HP
 \fB\-\-decorations\fR <when>
 .IP
 Specify when to use the decorations that have been specified via '\-\-style'. The
 automatic mode only enables decorations if an interactive terminal is detected. The
 always mode will show decorations even when piping output. Possible
 values: *auto*, never, always.
+
+The \fBcompact\fR mode always enables selected decorations, uses single-line
+\fB===> filename <===\fR headings, and omits horizontal rules around files.
+Selected line numbers, change markers, and the vertical grid remain visible.
+Long headings are left to the terminal to wrap.
 .HP
 \fB\-f\fR, \fB\-\-force\-colorization\fR
 .IP
@@ -159,7 +179,29 @@ Example: '\-\-pager "less \fB\-RF\fR"'.
 
 Note: By default, if the pager is set to 'less' (and no command-line options are specified), 'bat' will pass the following command line options to the pager: '-R'/'--RAW-CONTROL-CHARS', '-F'/'--quit-if-one-screen' and '-X'/'--no-init'. The last option ('-X') is only used for 'less' versions older than 530. The '-R' option is needed to interpret ANSI colors correctly. The second option ('-F') instructs less to exit immediately if the output size is smaller than the vertical size of the terminal. This is convenient for small files because you do not have to press 'q' to quit the pager. The third option ('-X') is needed to fix a bug with the '--quit-if-one-screen' feature in old versions of 'less'. Unfortunately, it also breaks mouse-wheel support in 'less'. If you want to enable mouse-wheel scrolling on older versions of 'less', you can pass just '-R' (as in the example above, this will disable the quit-if-one-screen feature). For less 530 or newer, it should work out of the box.
 .HP
+\fB\-\-pager\-arg\fR=<arg>...
+.IP
+Append a literal argument after the selected external pager's existing arguments,
+including the default options supplied to less. Repeat for multiple arguments.
+No shell expansion is performed. For example, '\-\-pager\-arg=+100' opens less
+at line 100 without replacing BAT_PAGER or '\-\-pager'. The built-in pager does
+not accept additional arguments. This option has no effect when paging is disabled.
+.HP
+\fB\-\-fail-if-syntax-unsupported\fR
+.IP
+Skip inputs without a specific syntax, producing no output or diagnostic for those
+inputs and exiting with a nonzero status. Other errors are reported normally.
+Plain Text and binary inputs are unsupported; '\-\-binary=as-text' permits binary
+input with a recognized syntax. Explicit languages, mappings, first-line detection,
+'\-\-file-name', and a specific '\-\-fallback-syntax' still apply.
+Disables paging, allowing the next input preprocessor to handle unsupported files.
+.HP
 \fB\-m\fR, \fB\-\-map\-syntax\fR <glob-pattern:syntax-name>...
+.IP
+Use 'alias=syntax' to define a case-insensitive language alias, for example
+'csharp=C#'. Aliases apply to '\-\-language' and '\-\-fallback-syntax',
+without changing filename detection. Alias targets are existing syntax names or
+extensions; aliases do not chain. The last definition takes precedence.
 .IP
 Map a glob pattern to an existing syntax name. The glob pattern is matched on the full
 path and the filename. For example, to highlight *.build files with the Python syntax,
@@ -192,6 +234,16 @@ Use the dark theme specified by \fB-\-theme-dark\fR.
 .IP "light"
 Use the light theme specified by \fB-\-theme-light\fR.
 .RE
+.HP
+\fB\-\-set\-theme\-color\fR <name> <RRGGBB>
+.IP
+Override a global theme color without rebuilding theme assets. Supported names are
+\fBforeground\fR, \fBgutterForeground\fR, and \fBlineHighlight\fR.
+Colors are six hexadecimal digits, optionally prefixed with \fB#\fR.
+Repeat this option to set several colors; the last value for each name wins.
+For example, \fB\-\-set\-theme\-color lineHighlight 444444\fR changes the
+background of lines selected with \fB\-\-highlight\-line\fR.
+Syntax-specific scope colors remain defined by the theme.
 .HP
 \fB\-\-theme\-dark\fR <theme>
 .IP
@@ -242,8 +294,29 @@ replacing them.
 By default, the following components are enabled:
 changes, grid, header\-filename, numbers, snip
 .IP
-Possible values: *default*, full, auto, plain, changes, header, header-filename, header-filesize, grid,
-rule, numbers, snip.
+Possible values: *default*, full, auto, plain, changes, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical,
+rule, numbers, sidebar, snip.
+
+.PP
+The 'grid-vertical' style draws only the sidebar separator, without top or bottom
+borders. Combine it with 'numbers' and optionally 'rule' for separators between files.
+
+The 'sidebar' alias combines numbers and changes; use 'full,-sidebar' to remove both.
+The 'highlight-indicator' component marks highlighted lines and wrapped continuations
+with '>' in the sidebar, including without colors. Full style includes it when ranges are configured.
+The 'changes-highlight' component highlights whole lines with Git change markers,
+including surviving lines adjacent to deletions. It is included in full style,
+works independently of sidebar markers, and respects '--color=never'. Requires Git support.
+Header path, UTC modification time, and permissions are separate optional fields
+included in full style. Unavailable metadata is shown as a dash.
+.HP
+\fB\-\-max-bytes\fR <N>, \fB\-\-head\fR <N>
+.IP
+Read at most N bytes from each input before line buffering. Useful for devices and
+streams without newlines. Zero reads no content. The limit may split a multibyte
+character. Binary detection and formatting still apply; use '\-\-binary=as-text'
+to display binary bytes. With LESSOPEN, the limit applies to preprocessor output
+and does not bound the preprocessor's own reads.
 .HP
 \fB\-r\fR, \fB\-\-line\-range\fR <N:M>...
 .IP
@@ -305,6 +378,66 @@ Print this help message.
 \fB\-V\fR, \fB\-\-version\fR
 .IP
 Show version information.
+
+.HP
+\fB\-\-no-system-config\fR
+.IP
+Ignore the system-wide configuration file. The user configuration, including
+BAT_CONFIG_PATH, and environment options still apply. Pass this option on the
+command line; putting it in a configuration file has no effect.
+
+.HP
+\fB\-\-highlight-pattern\fR <regex>
+.IP
+Highlight lines matching a regular expression, using the style of
+'\-\-highlight-line'. Line endings are excluded from the match; wrapping does
+not change which lines match. Repeat the option to match any of several patterns,
+or combine it with explicit line ranges. Use '(?i)' for case-insensitive matching.
+
+.HP
+\fB\-\-syntax-delimiter\fR <regex>
+.IP
+Reset syntax highlighting before each line matching a regular expression.
+Delimiter lines are still displayed. Matches exclude line endings and are
+evaluated before wrapping, including lines hidden by '\-\-line-range'.
+For example, '\-\-syntax-delimiter=^---$' separates independent snippets at
+lines containing exactly '---'.
+
+.HP
+\fB\-\-style-single-file\fR <components>
+.HP
+\fB\-\-style-stdin\fR <components>
+.HP
+\fB\-\-style-multiple-files\fR <components>
+.IP
+Select styles for a single file, stdin alone, or multiple inputs respectively.
+A mixture of files and '-' uses the multiple-input style for every input.
+Uses the same components and +/- modifiers as '\-\-style', applied after
+the general style. Explicit plain/numbering flags and disabled decorations
+still take precedence. These options can be set in the configuration file.
+.HP
+\fB\-\-osc8\fR
+.IP
+Add OSC 8 hyperlinks to file headers and line numbers.
+.HP
+\fB\-\-osc8-highlight\fR
+.IP
+Add OSC 8 hyperlinks only to highlighted line numbers.
+.HP
+\fB\-\-hyperlink-format\fR <URI>
+.IP
+Set the URI template used by the OSC 8 options. The default 'file://{path}' opens
+the file. '{path}' expands to the percent-encoded absolute path; '{line}' expands
+to the line number (1 for headers). An editor-specific format such as
+'vscode://file{path}:{line}' can open a particular line. Unnamed stdin has no links;
+use '\-\-file-name' to associate it with a path. Requires a supporting terminal/pager.
+.HP
+\fB\-\-warning\fR <kind>
+.IP
+Enable optional warnings: 'none' (default) or 'missing-trailing-newline'.
+The warning appears below formatted output, or on standard error when output is
+passed through unchanged. Empty inputs, binary inputs, and excluded final lines
+do not trigger the warning.
 .SH "POSITIONAL ARGUMENTS"
 .HP
 \fB<FILE>...\fR
@@ -323,11 +456,27 @@ is dependent on your operating system. To get the default path for your system, 
 Alternatively, you can use the BAT_CONFIG_PATH environment variable to point {{PROJECT_EXECUTABLE}} to a non-default
 location of the configuration file.
 
+On all platforms, including Windows, absolute \fBXDG_CONFIG_HOME\fR and
+\fBXDG_CACHE_HOME\fR values select the configuration and cache base directories,
+with a \fBbat\fR subdirectory appended. \fBBAT_CONFIG_DIR\fR and
+\fBBAT_CACHE_PATH\fR take precedence. Empty and relative XDG values are ignored;
+Windows otherwise uses its native application data directories.
+.PP
 To generate a default configuration file, call:
 
 \fB{{PROJECT_EXECUTABLE}} --generate-config-file\fR
 
 These are related options:
+.HP
+\fB\-\-show\-config\fR [field]
+.IP
+Show merged configuration arguments from system/user config files, environment
+variables, and the command line. The full listing is alphabetical and omits
+parser defaults. A field query prints its values without a label, including its
+parser default if present; an unset field produces no output. Repeatable values
+retain their order and automatic modes remain unresolved. The alias
+\fB\-\-config\fR is also accepted. This operation does not read input files,
+load theme assets, or start a pager.
 .HP
 \fB\-\-config\-file\fR
 .IP

@@ -38,8 +38,14 @@ pub struct Config<'a> {
     /// The explicitly configured language, if any
     pub language: Option<&'a str>,
 
+    /// Silently reject inputs without a specific syntax (also disables paging)
+    pub fail_if_syntax_unsupported: bool,
+
     /// The fallback syntax used when auto-detection fails
     pub fallback_syntax: Option<&'a str>,
+
+    /// Reset syntax highlighting before lines matching this regular expression.
+    pub syntax_delimiter: Option<regex::Regex>,
 
     /// Whether or not to show/replace non-printable characters like space, tab and newline.
     pub show_nonprintable: bool,
@@ -69,6 +75,9 @@ pub struct Config<'a> {
     /// Style elements (grid, line numbers, ...)
     pub style_components: StyleComponents,
 
+    /// Use single-line file headings and omit horizontal header/footer rules.
+    pub compact_headers: bool,
+
     /// If and how text should be wrapped
     pub wrapping_mode: WrappingMode,
 
@@ -82,17 +91,32 @@ pub struct Config<'a> {
     /// The syntax highlighting theme
     pub theme: String,
 
+    /// Overrides for global foreground, gutter, and highlighted-line colors.
+    pub theme_colors: crate::theme::ThemeColorOverrides,
+
     /// File extension/name mappings
     pub syntax_mapping: SyntaxMapping<'a>,
 
     /// Command to start the pager
     pub pager: Option<&'a str>,
 
+    /// Literal arguments appended after the selected pager's existing arguments
+    pub pager_args: Vec<String>,
+
     /// Whether or not to use ANSI italics
     pub use_italic_text: bool,
 
+    /// Optional OSC 8 links for file headers and line numbers.
+    pub hyperlink: Option<crate::hyperlink::Hyperlink>,
+
+    /// Whether to honor theme background colors for highlighted text
+    pub use_theme_background: bool,
+
     /// Ranges of lines which should be highlighted with a special background color
     pub highlighted_lines: HighlightedLineRanges,
+
+    /// Regular expressions selecting additional lines to highlight.
+    pub highlighted_patterns: Vec<regex::Regex>,
 
     /// Whether or not to allow custom assets. If this is false or if custom assets (a.k.a.
     /// cached assets) are not available, assets from the binary will be used instead.
@@ -116,6 +140,11 @@ pub struct Config<'a> {
 
     /// Whether or not to produce no output when input is empty
     pub quiet_empty: bool,
+
+    /// Report a missing final newline after reading the input to EOF.
+    pub warn_missing_newline: bool,
+    /// Maximum input bytes to read from each source
+    pub max_bytes: Option<u64>,
 
     /// Whether or not to use unbuffered input reading for streaming use cases
     pub unbuffered: bool,

@@ -202,44 +202,48 @@ impl LessOpenPreprocessor {
 
         Ok(OpenedInput {
             kind,
-            reader: InputReader::try_new(BufReader::new(
-                if matches!(self.kind, LessOpenKind::TempFile) {
-                    let lessopen_string = match String::from_utf8(lessopen_stdout) {
-                        Ok(string) => string,
-                        Err(_) => {
-                            return input.open(stdin, stdout_identifier);
-                        }
-                    };
-                    // Remove newline at end of temporary file path returned by $LESSOPEN
-                    let stdout = match lessopen_string.strip_suffix("\n") {
-                        Some(stripped) => stripped.to_owned(),
-                        None => lessopen_string,
-                    };
+            reader: InputReader::with_raw_stream(
+                BufReader::new(
+                    (if matches!(self.kind, LessOpenKind::TempFile) {
+                        let lessopen_string = match String::from_utf8(lessopen_stdout) {
+                            Ok(string) => string,
+                            Err(_) => {
+                                return input.open(stdin, stdout_identifier);
+                            }
+                        };
+                        // Remove newline at end of temporary file path returned by $LESSOPEN
+                        let stdout = match lessopen_string.strip_suffix("\n") {
+                            Some(stripped) => stripped.to_owned(),
+                            None => lessopen_string,
+                        };
 
-                    let file = match File::open(PathBuf::from(&stdout)) {
-                        Ok(file) => file,
-                        Err(_) => {
-                            return input.open(stdin, stdout_identifier);
-                        }
-                    };
+                        let file = match File::open(PathBuf::from(&stdout)) {
+                            Ok(file) => file,
+                            Err(_) => {
+                                return input.open(stdin, stdout_identifier);
+                            }
+                        };
 
-                    Preprocessed {
-                        kind: PreprocessedKind::TempFile(file),
-                        lessclose: self
-                            .lessclose
-                            .as_ref()
-                            .map(|s| shell_substitute_two(s, &path_str, &stdout)),
-                    }
-                } else {
-                    Preprocessed {
-                        kind: PreprocessedKind::Piped(Cursor::new(lessopen_stdout)),
-                        lessclose: self
-                            .lessclose
-                            .as_ref()
-                            .map(|s| shell_substitute_two(s, &path_str, "-")),
-                    }
-                },
-            ))?,
+                        Preprocessed {
+                            kind: PreprocessedKind::TempFile(file),
+                            lessclose: self
+                                .lessclose
+                                .as_ref()
+                                .map(|s| shell_substitute_two(s, &path_str, &stdout)),
+                        }
+                    } else {
+                        Preprocessed {
+                            kind: PreprocessedKind::Piped(Cursor::new(lessopen_stdout)),
+                            lessclose: self
+                                .lessclose
+                                .as_ref()
+                                .map(|s| shell_substitute_two(s, &path_str, "-")),
+                        }
+                    })
+                    .take(input.metadata.max_bytes.unwrap_or(u64::MAX)),
+                ),
+                input.metadata.raw_stream,
+            )?,
             metadata: input.metadata,
             description: input.description,
         })

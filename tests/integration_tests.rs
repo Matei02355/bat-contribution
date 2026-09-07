@@ -52,6 +52,194 @@ fn basic() {
 }
 
 #[test]
+fn truncate_wrap_fits_lines_to_visible_width() {
+    for (input, width, expected) in [
+        ("abc\n", 4, "abc\n"),
+        ("abcd\n", 4, "abcd\n"),
+        ("abcdef\n", 4, "abc…\n"),
+        ("abcdef", 4, "abc…\n"),
+        ("abc\n\n", 1, "…\n\n"),
+        ("界界界\n", 5, "界界…\n"),
+        ("e\u{301}e\u{301}e\u{301}\n", 2, "e\u{301}…\n"),
+        ("👩‍💻abc\n", 3, "👩‍💻…\n"),
+        ("a\tb\n", 5, "a   …\n"),
+        ("abcdef\r\n", 4, "abc…\n"),
+    ] {
+        bat()
+            .args([
+                "--wrap=truncate",
+                "--style=plain",
+                "--color=never",
+                "--paging=never",
+            ])
+            .arg(format!("--terminal-width={width}"))
+            .write_stdin(input)
+            .assert()
+            .success()
+            .stdout(expected);
+    }
+}
+
+#[test]
+fn truncate_wrap_accounts_for_the_sidebar() {
+    bat()
+        .args([
+            "--wrap=truncate",
+            "--style=numbers,grid",
+            "--decorations=always",
+            "--color=never",
+            "--paging=never",
+            "--terminal-width=15",
+        ])
+        .write_stdin("abcdefghijklmnop\nshort\n")
+        .assert()
+        .success()
+        .stdout("─────┬─────────\n   1 │ abcdefg…\n   2 │ short\n─────┴─────────\n");
+}
+
+#[test]
+fn truncate_wrap_tracks_escape_sequences_in_omitted_text() {
+    let result = bat()
+        .args([
+            "--wrap=truncate",
+            "--style=plain",
+            "--language=txt",
+            "--color=never",
+            "--paging=never",
+            "--terminal-width=4",
+        ])
+        .write_stdin("abcdef\x1b[31m\nred\nabcdef\x1b[0m\nplain\n")
+        .assert()
+        .success();
+    let output = String::from_utf8_lossy(&result.get_output().stdout);
+    assert_eq!(
+        console::strip_ansi_codes(&output),
+        "abc…\nred\nabc…\npla…\n"
+    );
+    assert!(output.lines().nth(1).unwrap().contains("\x1b[31mred"));
+    assert!(!output.lines().nth(3).unwrap().contains("\x1b[31m"));
+}
+
+#[test]
+fn truncate_wrap_expands_tabs_across_ansi_regions() {
+    let result = bat()
+        .args([
+            "--wrap=truncate",
+            "--tabs=4",
+            "--style=plain",
+            "--language=txt",
+            "--color=never",
+            "--paging=never",
+            "--terminal-width=6",
+        ])
+        .write_stdin("ab\x1b[31m\tcd\x1b[0m\n")
+        .assert()
+        .success();
+    let output = String::from_utf8_lossy(&result.get_output().stdout);
+    assert_eq!(console::strip_ansi_codes(&output), "ab  cd\n");
+}
+
+#[test]
+fn truncate_wrap_highlights_tokens_and_the_ellipsis() {
+    let result = bat()
+        .args([
+            "--wrap=truncate",
+            "--style=plain",
+            "--language=Rust",
+            "--theme=ansi",
+            "--color=always",
+            "--paging=never",
+            "--terminal-width=12",
+        ])
+        .write_stdin("let value = 123456;\n")
+        .assert()
+        .success();
+    let output = String::from_utf8_lossy(&result.get_output().stdout);
+    assert_eq!(console::strip_ansi_codes(&output), "let value =…\n");
+    assert!(output.contains("\x1b[1m…\x1b[0m"));
+}
+
+#[test]
+#[cfg(feature = "build-assets")]
+fn theme_background_is_opt_in_and_respects_line_highlighting() {
+    let cache = tempdir().unwrap();
+    bat_with_config()
+        .current_dir(Path::new(EXAMPLES_DIR).join("theme-background"))
+        .args(["cache", "--build", "--source", ".", "--target"])
+        .arg(cache.path())
+        .assert()
+        .success();
+
+    for wrap in ["never", "character", "word"] {
+        for mode in [None, Some("never"), Some("always")] {
+            let mut command = bat();
+            command
+                .env("BAT_CACHE_PATH", cache.path())
+                .args([
+                    "--theme=background",
+                    "--language=Python",
+                    "--color=always",
+                    "--style=plain",
+                    "--paging=never",
+                    "--terminal-width=14",
+                ])
+                .arg(format!("--wrap={wrap}"))
+                .write_stdin("value = 1 # a long comment\n");
+            if let Some(mode) = mode {
+                command.arg(format!("--theme-background={mode}"));
+            }
+            let result = command.assert().success();
+            let output = String::from_utf8_lossy(&result.get_output().stdout);
+            assert_eq!(
+                output.contains("41;32m"),
+                mode == Some("always"),
+                "{output:?}"
+            );
+            assert_eq!(
+                output.contains("43;32m"),
+                mode == Some("always"),
+                "{output:?}"
+            );
+        }
+
+        bat()
+            .env("BAT_CACHE_PATH", cache.path())
+            .args([
+                "--theme=background",
+                "--language=Python",
+                "--color=always",
+                "--theme-background=always",
+                "--style=plain",
+                "--paging=never",
+                "--highlight-line=1",
+                "--terminal-width=14",
+            ])
+            .arg(format!("--wrap={wrap}"))
+            .write_stdin("value = 1 # a long comment\n")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("44;32m"))
+            .stdout(predicate::str::contains("43;32m").not());
+    }
+
+    bat()
+        .env("BAT_CACHE_PATH", cache.path())
+        .args([
+            "--theme=background",
+            "--language=Python",
+            "--theme-background=always",
+            "--color=never",
+            "--decorations=always",
+            "--style=plain",
+            "--paging=never",
+        ])
+        .write_stdin("value = 1 # comment\n")
+        .assert()
+        .success()
+        .stdout("value = 1 # comment\n");
+}
+
+#[test]
 fn stdin() {
     bat()
         .write_stdin("foo\nbar\n")
@@ -792,6 +980,34 @@ fn list_languages() {
 }
 
 #[test]
+fn list_languages_includes_syntaxes_without_file_extensions() {
+    bat()
+        .args(["--list-languages", "--paging=never"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("LaTeX Log:\n"));
+
+    bat()
+        .args(["--list-languages", "--paging=never", "--decorations=always"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("LaTeX Log"));
+}
+
+#[test]
+fn list_languages_includes_mappings_for_syntaxes_without_file_extensions() {
+    bat()
+        .args([
+            "--list-languages",
+            "--paging=never",
+            "--map-syntax=*.latex-log:LaTeX Log",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("LaTeX Log:*.latex-log\n"));
+}
+
+#[test]
 #[cfg_attr(
     any(not(feature = "git"), feature = "lessopen", target_os = "windows"),
     ignore
@@ -839,6 +1055,35 @@ fn long_help_with_highlighting() {
         .stdout(predicate::str::contains("\x1B["))
         .stdout(predicate::str::contains("Usage:"))
         .stdout(predicate::str::contains("Options:"));
+}
+
+#[test]
+fn help_with_force_colorization() {
+    for args in [
+        vec!["--help", "--force-colorization"],
+        vec!["-h", "-f"],
+        vec!["-fh"],
+    ] {
+        bat()
+            .args(args)
+            .arg("--paging=never")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("\x1B["))
+            .stdout(predicate::str::contains("Usage:"))
+            .stderr("");
+    }
+}
+
+#[test]
+fn help_with_force_colorization_keeps_color_option_conflict() {
+    bat()
+        .args(["--help", "--force-colorization", "--color=never"])
+        .arg("--paging=never")
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("cannot be used with"));
 }
 
 #[test]
@@ -2434,6 +2679,67 @@ fn header_narrow_terminal_with_multibyte_chars() {
 }
 
 #[test]
+fn header_wrapping_uses_display_width_and_preserves_escape_sequences() {
+    for (label, width, expected) in [
+        ("abcdefghijk", 12, "File: abcdef\nghijk\nx\n"),
+        ("界界界界", 11, "File: 界界\n界界\nx\n"),
+        (
+            "e\u{301}e\u{301}e\u{301}",
+            8,
+            "File: e\u{301}e\u{301}\ne\u{301}\nx\n",
+        ),
+    ] {
+        for color in ["never", "always"] {
+            let result = bat()
+                .args(["--style=header", "--decorations=always", "--paging=never"])
+                .arg(format!("--color={color}"))
+                .arg(format!("--terminal-width={width}"))
+                .args(["--file-name", label])
+                .write_stdin("x\n")
+                .assert()
+                .success();
+            let output = String::from_utf8_lossy(&result.get_output().stdout);
+            assert_eq!(
+                console::strip_ansi_codes(&output),
+                expected,
+                "{color}: {label}"
+            );
+            if color == "always" {
+                assert!(output.contains('\u{1b}'));
+            }
+        }
+    }
+}
+
+#[test]
+fn header_wrapping_preserves_colored_sidebar_alignment() {
+    let output = |color: &str| {
+        bat()
+            .args([
+                "--style=header,numbers,grid",
+                "--decorations=always",
+                "--paging=never",
+            ])
+            .arg(format!("--color={color}"))
+            .args(["--terminal-width=20", "--file-name", "a-long-file-name.txt"])
+            .write_stdin("x\n")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+    let plain = String::from_utf8(output("never")).unwrap();
+    let colored = String::from_utf8(output("always")).unwrap();
+    assert_eq!(console::strip_ansi_codes(&colored), plain);
+    assert!(colored
+        .lines()
+        .skip(1)
+        .take(2)
+        .all(|line| line.contains('\u{1b}')));
+}
+
+#[test]
 #[cfg(feature = "git")] // Expected output assumes git is enabled
 fn header_default() {
     bat()
@@ -3225,7 +3531,7 @@ fn grid_for_file_without_newline() {
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
-        .arg("--style=full")
+        .arg("--style=full,-header-path,-header-modified,-header-permissions")
         .arg("single-line.txt")
         .assert()
         .success()
@@ -3247,7 +3553,7 @@ fn grid_for_file_without_newline() {
 fn ansi_highlight_underline() {
     bat()
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -3476,7 +3782,7 @@ fn theme_arg_overrides_env() {
     bat()
         .env("BAT_THEME", "TwoDark")
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -3496,7 +3802,7 @@ fn theme_arg_overrides_env_withconfig() {
         .env("BAT_CONFIG_PATH", "bat-theme.conf")
         .env("BAT_THEME", "TwoDark")
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -3517,7 +3823,7 @@ fn theme_light_env_var_is_respected() {
         .env("COLORTERM", "truecolor")
         .arg("--theme=light")
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -3526,7 +3832,7 @@ fn theme_light_env_var_is_respected() {
         .write_stdin("Lorem Ipsum")
         .assert()
         .success()
-        .stdout("\x1B[48;2;208;218;231mLorem Ipsum\x1B[0m")
+        .stdout("\x1B[48;2;208;218;231;38;2;17;27;39mLorem Ipsum\x1B[0m")
         .stderr("");
 }
 
@@ -3537,7 +3843,7 @@ fn theme_dark_env_var_is_respected() {
         .env("COLORTERM", "truecolor")
         .arg("--theme=dark")
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -3546,7 +3852,7 @@ fn theme_dark_env_var_is_respected() {
         .write_stdin("Lorem Ipsum")
         .assert()
         .success()
-        .stdout("\x1B[48;2;33;48;67mLorem Ipsum\x1B[0m")
+        .stdout("\x1B[48;2;33;48;67;38;2;227;234;242mLorem Ipsum\x1B[0m")
         .stderr("");
 }
 
@@ -3556,7 +3862,7 @@ fn theme_env_overrides_config() {
         .env("BAT_CONFIG_PATH", "bat-theme.conf")
         .env("BAT_THEME", "ansi")
         .arg("--paging=never")
-        .arg("--color=never")
+        .arg("--color=always")
         .arg("--terminal-width=80")
         .arg("--wrap=never")
         .arg("--decorations=always")
@@ -4331,7 +4637,7 @@ fn style_components_can_be_removed() {
         .write_stdin("test")
         .assert()
         .success()
-        .stdout("     STDIN\n     Size: -\n   1 test\n")
+        .stdout("     STDIN\n     Size: -\n     Path: -\n     Modified: -\n     Permissions: -\n   1 test\n")
         .stderr("");
 }
 

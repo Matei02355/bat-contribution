@@ -36,6 +36,8 @@ function __bat_complete_map_syntax
     if string match -qr '(?<glob>.+):(?<syntax>.*)' -- $token
         # If token ends with a colon, complete with the list of language names.
         set -f comps $glob:(__bat_complete_one_language $syntax)
+    else if string match -qr '(?<alias>[^:]+)=(?<syntax>.*)' -- $token
+        set -f comps $alias=(__bat_complete_one_language $syntax)
     else if string match -qr '\*' -- $token
         # If token contains a globbing character (`*`), complete only possible
         # globs in the current directory
@@ -79,11 +81,18 @@ function __bat_style_opts
         "full,all components" \
         "plain,no components" \
         "changes,Git change markers" \
+        "changes-highlight,highlight lines with Git changes" \
         "header,alias for header-filename" \
         "header-filename,filename above content" \
         "header-filesize,filesize above content" \
+        "header-path,absolute source path" \
+        "header-modified,modification time in UTC" \
+        "header-permissions,file permissions" \
         "grid,lines b/w sidebar/header/content" \
+        "grid-vertical,vertical sidebar separator" \
+        "highlight-indicator,text markers for highlighted lines" \
         "numbers,line numbers in sidebar" \
+        "sidebar,line numbers and Git changes" \
         "rule,separate files" \
         "snip,separate ranges"
 
@@ -97,7 +106,7 @@ set -l color_opts '
     never\t
     always\t
 '
-set -l decorations_opts $color_opts
+set -l decorations_opts $color_opts 'compact\tCompact\ file\ headings'
 set -l paging_opts $color_opts
 
 # Include some examples so we can indicate the default.
@@ -119,6 +128,7 @@ set -l wrap_opts '
     never\t
     character\t
     word\t
+    truncate\t
 '
 
 # While --tabs theoretically takes any number, most people should be OK with these.
@@ -143,11 +153,11 @@ set -l special_themes '
 
 complete -c $bat -l acknowledgements -d "Print acknowledgements" -n __fish_is_first_arg
 
-complete -c $bat -l binary -x -a "no-printing as-text" -d "How to treat binary content" -n __bat_no_excl_args
+complete -c $bat -l binary -x -a "no-printing as-text skip" -d "How to treat binary content" -n __bat_no_excl_args
 
 complete -c $bat -l cache-dir -f -d "Show bat's cache directory" -n __fish_is_first_arg
 
-complete -c $bat -s c -l chop-long-lines -d "Truncate all lines longer than screen width" -n __bat_no_excl_args
+complete -c $bat -s S -l chop-long-lines -d "Disable wrapping" -n __bat_no_excl_args
 
 complete -c $bat -l color -x -a "$color_opts" -d "When to use colored output" -n __bat_no_excl_args
 
@@ -176,11 +186,14 @@ complete -c $bat -s h -d "Print a concise overview" -n __fish_is_first_arg
 
 complete -c $bat -l help -f -d "Print all help information" -n __fish_is_first_arg
 
+complete -c $bat -l highlight-pattern -x -d "Highlight lines matching a regular expression" -n __bat_no_excl_args
+complete -c $bat -l syntax-delimiter -x -d "Reset highlighting before matching lines" -n __bat_no_excl_args
 complete -c $bat -s H -l highlight-line -x -d "Highlight line(s) N[:M]" -n __bat_no_excl_args
 
 complete -c $bat -l ignored-suffix -x -d "Ignore extension" -n __bat_no_excl_args
 
 complete -c $bat -l italic-text -x -a "$italic_text_opts" -d "When to use italic text in the output" -n __bat_no_excl_args
+complete -c $bat -l theme-background -x -a "$italic_text_opts" -d "Apply theme background colors to text" -n __bat_no_excl_args
 
 complete -c $bat -s l -l language -x -k -a "(__bat_complete_list_languages)" -d "Set the syntax highlighting language" -n __bat_no_excl_args
 
@@ -192,8 +205,9 @@ complete -c $bat -l list-languages -f -d "List syntax highlighting languages" -n
 
 complete -c $bat -l list-themes -f -d "List syntax highlighting themes" -n __fish_is_first_arg
 
-complete -c $bat -s m -l map-syntax -x -a "(__bat_complete_map_syntax)" -d "Map <glob pattern>:<language syntax>" -n __bat_no_excl_args
+complete -c $bat -s m -l map-syntax -x -a "(__bat_complete_map_syntax)" -d "Map glob:syntax or alias=syntax" -n __bat_no_excl_args
 
+complete -c $bat -l no-system-config -d "Ignore the system-wide configuration file"
 complete -c $bat -l no-config -d "Do not use the configuration file"
 
 complete -c $bat -l no-custom-assets -d "Do not load custom assets"
@@ -229,6 +243,9 @@ complete -c $bat -o pp -d "Disable decorations and paging" -n __bat_no_excl_args
 
 complete -c $bat -s P -d "Disable paging" -n __bat_no_excl_args
 
+complete -c $bat -l style-single-file -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
+complete -c $bat -l style-stdin -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
+complete -c $bat -l style-multiple-files -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
 complete -c $bat -l style -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
 
 complete -c $bat -l tabs -x -a "$tabs_opts" -d "Set tab width" -n __bat_no_excl_args
@@ -268,3 +285,14 @@ complete -c $bat -s h -d "Print a concise overview of $bat-cache help" -n __bat_
 complete -c $bat -l help -f -d "Print all $bat-cache help" -n __bat_cache_no_excl
 
 # vim:ft=fish
+
+complete -c $bat -l osc8 -d "Link file headers and line numbers" -n __bat_no_excl_args
+complete -c $bat -l osc8-highlight -d "Link only highlighted line numbers" -n __bat_no_excl_args
+complete -c $bat -l hyperlink-format -x -d "Set the hyperlink URI template" -n __bat_no_excl_args
+complete -c $bat -l warning -x -a "none missing-trailing-newline" -d "Enable optional input warnings" -n __bat_no_excl_args
+complete -c $bat -l pager-arg -r -f -d "Append a literal argument to the selected pager" -n __bat_no_excl_args
+complete -c $bat -l fail-if-syntax-unsupported -d "Silently reject inputs without a specific syntax" -n __bat_no_excl_args
+complete -c $bat -l max-bytes -x -d "Read at most N bytes per input" -n __bat_no_excl_args
+complete -c $bat -l head -x -d "Alias for --max-bytes" -n __bat_no_excl_args
+complete -c $bat -l set-theme-color -x -a "foreground gutterForeground lineHighlight" -d "Override a global theme color (name RRGGBB)" -n __bat_no_excl_args
+complete -c $bat -l show-config -f -d "Show merged configuration arguments" -n __bat_no_excl_args

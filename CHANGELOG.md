@@ -9,6 +9,47 @@
 
 ## Features
 
+- Add `--show-config [field]` to inspect merged configuration arguments, see #3955 (@Matei02355)
+
+- Add `--decorations=compact` for compact file headings while retaining selected line numbers and sidebars, see #3952 (@Matei02355)
+
+- Add global foreground, gutter, and highlighted-line color overrides through `--set-theme-color`, see #3951 (@Matei02355)
+
+- Add header components for absolute paths, modification times, and permissions, see #3950 (@Matei02355)
+
+- Add `--max-bytes` (`--head`) to bound reads before line buffering, see #3947 (@Matei02355)
+
+- Add `changes-highlight` style for whole-line highlighting of Git changes, see #3946 (@Matei02355)
+
+- Support exact language aliases with `--map-syntax alias=syntax`, see #3945 (@Matei02355)
+
+- Add `--fail-if-syntax-unsupported` for silent fallback in input preprocessor chains, see #3942 (@Matei02355)
+
+- Add repeatable `--pager-arg` options to extend pager arguments without replacing the configured command, see #3941 (@Matei02355)
+
+- Add a `highlight-indicator` style component for text markers beside highlighted lines, see #3940 (@Matei02355)
+
+- Allow library callers to construct `PrettyPrinter` with cached or custom highlighting assets, see #3939 (@Matei02355)
+
+- Support periodic line ranges and highlights with `~` increments, see #3938 (@Matei02355)
+
+- Add the `sidebar` style alias for line numbers and Git modification markers, see #3937 (@Matei02355)
+
+- Add `--binary=skip` to omit binary inputs even when output is redirected, see #3925 (@Matei02355)
+- Add `--no-system-config` to ignore machine-wide settings while retaining user configuration, see #3926 (@Matei02355)
+- Add the `grid-vertical` style for a sidebar separator without horizontal borders, see #3927 (@Matei02355)
+- Add `--highlight-pattern` to highlight lines matching regular expressions, see #3928 (@Matei02355)
+- Detect syntax from first-line Vim and Emacs modelines, see #3929 (@Matei02355)
+- Add `--syntax-delimiter` to reset highlighting between independent text sections, see #3930 (@Matei02355)
+
+- Allow separate styles for a single file, stdin, and multiple inputs, see #3931 (@Matei02355)
+
+- Add opt-in OSC 8 hyperlinks for filenames and line numbers, including highlighted-line links and custom URI templates. Closes #2158, see #3933 (@Matei02355)
+- Add an opt-in warning for a missing trailing newline without changing redirected file contents. Closes #975, see #3934 (@Matei02355)
+- Add `--wrap=truncate` to shorten long lines with an ellipsis, see #3923 (@Matei02355)
+
+- Add opt-in theme background colors through `--theme-background`, see #3924 (@Matei02355)
+
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)
 - Map justfile, Justfile, .justfile, and *.justfile to Makefile syntax highlighting, see #3623 (@zachvalenta)
@@ -25,6 +66,20 @@
 - Syntax highlighting for Python files using uv as script runner in shebang #3689 (@janlarres)
 
 ## Bugfixes
+
+- Honor absolute `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` overrides on Windows while preserving bat-specific overrides and native defaults, see #3954 (@Matei02355)
+
+- Detect EPUB `.opf` metadata as XML and Ikiwiki `.mdwn` pages as Markdown, see #3953 (@Matei02355)
+
+- Stream plain piped output without waiting for a newline, including infinite devices, see #3949 (@Matei02355)
+- Only highlight inserted nonprintable placeholders with `--show-all`, preserving literal escape spellings, see #3932 (@Matei02355)
+- Honor `--force-colorization` when displaying help, see #3915 (@Matei02355)
+
+- Allow terminal wrapping for styles without line numbers or change markers, see #3916 (@Matei02355)
+
+- Include languages without file extensions in language listings and completion candidates, see #3917 (@Matei02355)
+
+- Wrap colored headers using terminal display width and preserve their styling, see #3918 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)

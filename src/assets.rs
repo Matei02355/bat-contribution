@@ -221,6 +221,7 @@ impl HighlightingAssets {
         mapping: &SyntaxMapping,
     ) -> Result<SyntaxReferenceInSet<'_>> {
         if let Some(language) = language {
+            let language = mapping.language_alias(language).unwrap_or(language);
             let syntax_set = self.get_syntax_set()?;
             return syntax_set
                 .find_syntax_by_token(language)
@@ -235,6 +236,22 @@ impl HighlightingAssets {
                 .map(|abs| abs.as_path().to_path_buf())
                 .or_else(|| Some(p.to_owned()))
         });
+
+        // An explicit syntax mapping wins over a modeline, just like --language.
+        // Otherwise a valid first-line editor hint takes precedence over file extensions.
+        let has_explicit_mapping = absolute_path.as_ref().is_some_and(|path| {
+            matches!(mapping.get_syntax_for(path), Some(MappingTarget::MapTo(_)))
+        });
+        if !has_explicit_mapping {
+            if let Ok(first_line) = std::str::from_utf8(&input.reader.first_line) {
+                let first_line = first_line.trim_start_matches('\u{feff}');
+                for (_, token) in crate::modeline::syntax_names(first_line) {
+                    if let Some(syntax) = self.find_syntax_by_token(token)? {
+                        return Ok(syntax);
+                    }
+                }
+            }
+        }
 
         let path_syntax = if let Some(ref path) = absolute_path {
             self.get_syntax_for_path(path, mapping).or_else(|e| {
@@ -267,6 +284,7 @@ impl HighlightingAssets {
                 if let Some(syntax_in_set) = self.get_first_line_syntax(&mut input.reader)? {
                     Ok(syntax_in_set)
                 } else if let Some(language) = fallback_syntax {
+                    let language = mapping.language_alias(language).unwrap_or(language);
                     self.find_syntax_by_token(language)?
                         .ok_or_else(|| Error::UnknownSyntax(language.to_owned()))
                 } else {
@@ -523,6 +541,19 @@ mod tests {
             }
 
             consistent
+        }
+    }
+
+    #[test]
+    fn detect_epub_package_and_ikiwiki_markdown_extensions() {
+        let test = SyntaxDetectionTest::new();
+        for (filename, expected) in [
+            ("book.opf", "XML"),
+            ("BOOK.OPF", "XML"),
+            ("page.mdwn", "Markdown"),
+            ("PAGE.MDWN", "Markdown"),
+        ] {
+            assert_eq!(test.syntax_for_file(filename), expected, "{filename}");
         }
     }
 

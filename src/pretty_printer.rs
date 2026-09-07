@@ -21,11 +21,18 @@ use crate::paging::PagingMode;
 #[derive(Default)]
 struct ActiveStyleComponents {
     header_filename: bool,
+    header_path: bool,
+    header_modified: bool,
+    header_permissions: bool,
     #[cfg(feature = "git")]
     vcs_modification_markers: bool,
+    #[cfg(feature = "git")]
+    vcs_modification_highlighting: bool,
     grid: bool,
+    grid_vertical: bool,
     rule: bool,
     line_numbers: bool,
+    highlight_indicator: bool,
     snip: bool,
 }
 
@@ -62,6 +69,27 @@ impl<'a> PrettyPrinter<'a> {
             term_width: None,
             active_style_components: ActiveStyleComponents::default(),
         }
+    }
+
+    /// Create a printer using an existing asset cache, such as one built by
+    /// `bat cache --build`. The directory is explicit: this does not read user
+    /// configuration or environment variables.
+    ///
+    /// Invalid or missing caches return an error during construction.
+    pub fn from_cache(cache_path: impl AsRef<Path>) -> Result<Self> {
+        Self::with_assets(HighlightingAssets::from_cache(cache_path.as_ref())?)
+    }
+
+    /// Create a printer with custom syntax and theme assets.
+    ///
+    /// Syntaxes are loaded immediately so malformed caches return an error
+    /// before this printer is used or its syntaxes are enumerated.
+    pub fn with_assets(assets: HighlightingAssets) -> Result<Self> {
+        assets.get_syntaxes()?;
+        Ok(Self {
+            assets,
+            ..Self::new()
+        })
     }
 
     /// Add an input which should be pretty-printed
@@ -115,6 +143,15 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Reset highlighting before lines matching the given regular expression.
+    pub fn syntax_delimiter(&mut self, pattern: &str) -> Result<&mut Self> {
+        self.config.syntax_delimiter = Some(
+            regex::Regex::new(pattern)
+                .map_err(|error| format!("Invalid syntax delimiter: {error}"))?,
+        );
+        Ok(self)
+    }
+
     /// The character width of the terminal (default: autodetect)
     pub fn term_width(&mut self, width: usize) -> &mut Self {
         self.term_width = Some(width);
@@ -133,9 +170,22 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Reject inputs without a specific syntax and disable paging.
+    pub fn fail_if_syntax_unsupported(&mut self, yes: bool) -> &mut Self {
+        self.config.fail_if_syntax_unsupported = yes;
+        self
+    }
+
     /// Whether or not to output 24bit colors (default: true)
     pub fn true_color(&mut self, yes: bool) -> &mut Self {
         self.config.true_color = yes;
+        self
+    }
+
+    /// Use compact file headings without horizontal header/footer rules.
+    /// Selected line numbers, change markers, and the vertical grid remain visible.
+    pub fn compact_headers(&mut self, yes: bool) -> &mut Self {
+        self.config.compact_headers = yes;
         self
     }
 
@@ -145,15 +195,56 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Whether to show the absolute source path in the header.
+    pub fn header_path(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.header_path = yes;
+        self
+    }
+
+    /// Whether to show the last modification time in UTC.
+    pub fn header_modified(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.header_modified = yes;
+        self
+    }
+
+    /// Whether to show file permissions (Unix mode or a read-only indicator).
+    pub fn header_permissions(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.header_permissions = yes;
+        self
+    }
+
     /// Whether to show line numbers
     pub fn line_numbers(&mut self, yes: bool) -> &mut Self {
         self.active_style_components.line_numbers = yes;
         self
     }
 
+    /// Enable or disable line numbers and Git modification markers together.
+    pub fn sidebar(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.line_numbers = yes;
+        #[cfg(feature = "git")]
+        {
+            self.active_style_components.vcs_modification_markers = yes;
+        }
+        self
+    }
+
+    /// Whether to mark highlighted lines with `>` in the sidebar.
+    /// The column is omitted when no highlight ranges are configured.
+    pub fn highlight_indicator(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.highlight_indicator = yes;
+        self
+    }
+
     /// Whether to paint a grid, separating line numbers, git changes and the code
     pub fn grid(&mut self, yes: bool) -> &mut Self {
         self.active_style_components.grid = yes;
+        self
+    }
+
+    /// Whether to separate the sidebar from the contents without horizontal borders.
+    pub fn grid_vertical(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.grid_vertical = yes;
         self
     }
 
@@ -171,9 +262,23 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Highlight lines with Git change markers using the theme's line highlight.
+    /// This can be enabled independently of the sidebar modification markers.
+    #[cfg(feature = "git")]
+    pub fn vcs_modification_highlighting(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.vcs_modification_highlighting = yes;
+        self
+    }
+
     /// Whether to print binary content or nonprintable characters (default: no)
     pub fn show_nonprintable(&mut self, yes: bool) -> &mut Self {
         self.config.show_nonprintable = yes;
+        self
+    }
+
+    /// Report a missing final newline after the last visible line.
+    pub fn warn_missing_newline(&mut self, yes: bool) -> &mut Self {
+        self.config.warn_missing_newline = yes;
         self
     }
 
@@ -213,6 +318,18 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Configure OSC 8 hyperlinks, or disable them with `None`.
+    pub fn hyperlinks(&mut self, config: Option<crate::hyperlink::Hyperlink>) -> &mut Self {
+        self.config.hyperlink = config;
+        self
+    }
+
+    /// Whether to honor theme background colors for highlighted text (default: off)
+    pub fn use_theme_background(&mut self, yes: bool) -> &mut Self {
+        self.config.use_theme_background = yes;
+        self
+    }
+
     /// If and how to use a pager (default: no paging)
     #[cfg(feature = "paging")]
     pub fn paging_mode(&mut self, mode: PagingMode) -> &mut Self {
@@ -224,6 +341,20 @@ impl<'a> PrettyPrinter<'a> {
     #[cfg(feature = "paging")]
     pub fn pager(&mut self, cmd: &'a str) -> &mut Self {
         self.config.pager = Some(cmd);
+        self
+    }
+
+    /// Append a literal argument to the selected external pager.
+    /// Can be called repeatedly. The built-in pager does not accept arguments.
+    #[cfg(feature = "paging")]
+    pub fn pager_arg(&mut self, arg: impl Into<String>) -> &mut Self {
+        self.config.pager_args.push(arg.into());
+        self
+    }
+
+    /// Read at most this many bytes from each input, before line buffering.
+    pub fn max_bytes(&mut self, limit: u64) -> &mut Self {
+        self.config.max_bytes = Some(limit);
         self
     }
 
@@ -249,6 +380,16 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Highlight lines matching a regular expression, in addition to explicit ranges.
+    /// Repeat this method to match any of several patterns.
+    pub fn highlight_pattern(&mut self, pattern: &str) -> Result<&mut Self> {
+        self.config.highlighted_patterns.push(
+            regex::Regex::new(pattern)
+                .map_err(|error| format!("Invalid highlight pattern: {error}"))?,
+        );
+        Ok(self)
+    }
+
     /// Specify the maximum number of consecutive empty lines to print.
     pub fn squeeze_empty_lines(&mut self, maximum: Option<usize>) -> &mut Self {
         self.config.squeeze_lines = maximum;
@@ -263,6 +404,15 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Override a global theme color without modifying the underlying theme.
+    ///
+    /// Supported names are `foreground`, `gutterForeground`, and `lineHighlight`.
+    /// The value is six hexadecimal digits, optionally prefixed with `#`.
+    pub fn set_theme_color(&mut self, name: &str, value: &str) -> Result<&mut Self> {
+        self.config.theme_colors.set(name, value)?;
+        Ok(self)
+    }
+
     /// Specify custom file extension / file name to syntax mappings
     pub fn syntax_mapping(&mut self, mapping: SyntaxMapping<'a>) -> &mut Self {
         self.config.syntax_mapping = mapping;
@@ -274,8 +424,8 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     pub fn syntaxes(&self) -> impl Iterator<Item = Syntax> + '_ {
-        // We always use assets from the binary, which are guaranteed to always
-        // be valid, so get_syntaxes() can never fail here
+        // Embedded assets are valid; custom assets were loaded and validated
+        // by with_assets(), so get_syntaxes() cannot fail here.
         self.assets
             .get_syntaxes()
             .unwrap()
@@ -306,6 +456,11 @@ impl<'a> PrettyPrinter<'a> {
         if self.active_style_components.grid {
             self.config.style_components.insert(StyleComponent::Grid);
         }
+        if self.active_style_components.grid_vertical {
+            self.config
+                .style_components
+                .insert(StyleComponent::GridVertical);
+        }
         if self.active_style_components.rule {
             self.config.style_components.insert(StyleComponent::Rule);
         }
@@ -314,6 +469,29 @@ impl<'a> PrettyPrinter<'a> {
                 .style_components
                 .insert(StyleComponent::HeaderFilename);
         }
+        if self.active_style_components.highlight_indicator {
+            self.config
+                .style_components
+                .insert(StyleComponent::HighlightIndicator);
+        }
+        for (enabled, component) in [
+            (
+                self.active_style_components.header_path,
+                StyleComponent::HeaderPath,
+            ),
+            (
+                self.active_style_components.header_modified,
+                StyleComponent::HeaderModified,
+            ),
+            (
+                self.active_style_components.header_permissions,
+                StyleComponent::HeaderPermissions,
+            ),
+        ] {
+            if enabled {
+                self.config.style_components.insert(component);
+            }
+        }
         if self.active_style_components.line_numbers {
             self.config
                 .style_components
@@ -321,6 +499,12 @@ impl<'a> PrettyPrinter<'a> {
         }
         if self.active_style_components.snip {
             self.config.style_components.insert(StyleComponent::Snip);
+        }
+        #[cfg(feature = "git")]
+        if self.active_style_components.vcs_modification_highlighting {
+            self.config
+                .style_components
+                .insert(StyleComponent::ChangesHighlight);
         }
         #[cfg(feature = "git")]
         if self.active_style_components.vcs_modification_markers {
@@ -375,6 +559,12 @@ impl<'a> Input<'a> {
     /// A new input from STDIN.
     pub fn from_stdin() -> Self {
         input::Input::stdin().into()
+    }
+
+    /// Read at most this many bytes from this input before line buffering.
+    pub fn max_bytes(mut self, limit: u64) -> Self {
+        self.input = self.input.with_max_bytes(limit);
+        self
     }
 
     /// The filename of the input.

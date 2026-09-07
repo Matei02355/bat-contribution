@@ -26,27 +26,39 @@ _{{PROJECT_EXECUTABLE}}_main() {
     args=(
         '(-A --show-all)'{-A,--show-all}'[show non-printable characters (space, tab, newline, ..)]'
         --nonprintable-notation='[specify how to display non-printable characters when using --show-all]:notation:(caret unicode)'
-        --binary='[specify how to treat binary content]:behavior:(no-printing as-text)'
+        --binary='[specify how to treat binary content]:behavior:(no-printing as-text skip)'
+        --warning='[enable optional input warnings]:kind:(none missing-trailing-newline)'
         \*{-p,--plain}'[show plain style (alias for `--style=plain`), repeat twice to disable automatic paging (alias for `--paging=never`)]'
         '(-l --language)'{-l+,--language=}'[set the language for syntax highlighting]:language:->languages'
+        \*--highlight-pattern='[highlight lines matching a regular expression]:regex'
+        --syntax-delimiter='[reset highlighting before matching lines]:regex'
         \*{-H+,--highlight-line=}'[highlight specified block of lines]:start\:end'
+        --osc8'[link file headers and line numbers]'
+        --osc8-highlight'[link only highlighted line numbers]'
+        --hyperlink-format='[set the hyperlink URI template]:URI'
         \*--file-name='[specify the name to display for a file]:name:_files'
         '(-d --diff)'--diff'[only show lines that have been added/removed/modified]'
         --diff-context='[specify lines of context around added/removed/modified lines when using `--diff`]:lines'
         --tabs='[set the tab width]:tab width [4]'
-        --wrap='[specify the text-wrapping mode]:mode [auto]:(auto never character word)'
+        --wrap='[specify the text-wrapping mode]:mode [auto]:(auto never character word truncate)'
         '!(--wrap)'{-S,--chop-long-lines}
         --terminal-width='[explicitly set the width of the terminal instead of determining it automatically]:width'
         '(-n --number --diff --diff-context)'{-n,--number}'[show line numbers]'
         --color='[specify when to use colors]:when:(auto never always)'
         --italic-text='[use italics in output]:when:(always never)'
-        --decorations='[specify when to show the decorations]:when:(auto never always)'
+        --theme-background='[apply theme background colors]:when:(always never)'
+        --decorations='[specify when and how to show the decorations]:when:(auto never always compact)'
         '(-f --force-colorization)'--force-colorization'[force colorization and decorations]'
         --paging='[specify when to use the pager]:when:(auto never always)'
         '(-P --no-paging)'--no-paging'[alias for --paging=never]'
+        --fail-if-syntax-unsupported'[silently reject inputs without a specific syntax]'
         --pager='[determine which pager to use]:command:'
-        '(-m --map-syntax)'{-m+,--map-syntax=}'[map a glob pattern to an existing syntax name]: :->syntax-maps'
+        '*--pager-arg=[append an argument to the selected pager]:argument:'
+        '(-m --map-syntax)'{-m+,--map-syntax=}'[map a glob pattern or define a language alias]: :->syntax-maps'
+        --max-bytes='[read at most N bytes per input]:bytes:'
+        --head='[alias for --max-bytes]:bytes:'
         --ignored-suffix='[ignore extension]:suffix:'
+        '*--set-theme-color[override a global theme color]:name:(foreground gutterForeground lineHighlight):RGB color:'
         '(--theme)'--theme='[set the color theme for syntax highlighting]:theme:->theme_preferences'
         '(--theme-dark)'--theme-dark='[set the color theme for syntax highlighting for dark backgrounds]:theme:->themes'
         '(--theme-light)'--theme-light='[set the color theme for syntax highlighting for light backgrounds]:theme:->themes'
@@ -55,8 +67,14 @@ _{{PROJECT_EXECUTABLE}}_main() {
         --squeeze-limit='[set the maximum number of consecutive empty lines]:limit:'
         --strip-ansi='[specify when to strip ANSI escape sequences]:when:(auto never always)'
         --sanitize='[specify when to sanitize untrusted input for safe display]:when:(auto never always)'
+        --style-single-file='[comma-separated list of style elements to display]: : _values "style [default]"
+            default auto full plain changes header header-filename header-filesize grid rule numbers sidebar snip'
+        --style-stdin='[comma-separated list of style elements to display]: : _values "style [default]"
+            default auto full plain changes header header-filename header-filesize grid rule numbers sidebar snip'
+        --style-multiple-files='[comma-separated list of style elements to display]: : _values "style [default]"
+            default auto full plain changes header header-filename header-filesize grid rule numbers sidebar snip'
         --style='[comma-separated list of style elements to display]: : _values "style [default]"
-            default auto full plain changes header header-filename header-filesize grid rule numbers snip'
+            default auto full plain changes changes-highlight header header-filename header-filesize header-path header-modified header-permissions highlight-indicator grid grid-vertical rule numbers sidebar snip'
         \*{-r+,--line-range=}'[only print the specified line range]:start\:end'
         '(* -)'{-L,--list-languages}'[display all supported languages]'
         '(-u --unbuffered)'--unbuffered'[enable unbuffered input reading for streaming use cases]'
@@ -65,11 +83,13 @@ _{{PROJECT_EXECUTABLE}}_main() {
         --diagnostic'[show diagnostic information for bug reports]'
         --quiet-empty'[do not produce any output when the input is empty]'
         -P'[disable paging]'
+        "--no-system-config[ignore the system-wide configuration file]"
         "--no-config[don't use the configuration file]"
         "--no-custom-assets[don't load custom assets]"
         '(--no-lessopen)'--lessopen'[enable the $LESSOPEN preprocessor]'
         '(--lessopen)'--no-lessopen'[disable the $LESSOPEN preprocessor if enabled (overrides --lessopen)]'
         '(* -)'--config-dir"[show bat's configuration directory]"
+        '(* -)'--show-config'[show merged configuration arguments]::field:'
         '(* -)'--config-file'[show path to the configuration file]'
         '(* -)'--generate-config-file'[generate a default configuration file]'
         '(* -)'--cache-dir"[show bat's cache directory]"
@@ -82,8 +102,8 @@ _{{PROJECT_EXECUTABLE}}_main() {
 
     case "$state" in
         syntax-maps)
-          if ! compset -P '*:'; then
-            _message -e patterns 'glob pattern:language'
+          if ! compset -P '*:' && ! compset -P '*='; then
+            _message -e patterns 'glob pattern:language or alias=language'
             return
           fi
         ;& # fall-through

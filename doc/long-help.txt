@@ -26,6 +26,8 @@ Options:
           Possible values:
             * no-printing: do not print any binary content
             * as-text: treat binary content as normal text
+            * skip: omit binary inputs entirely, even when output is redirected or '--show-all' is
+            used
 
   -p, --plain...
           Only show plain style, no decorations. This is an alias for '--style=plain'. When '-p' is
@@ -37,12 +39,24 @@ Options:
           name (like 'C++' or 'LaTeX') or possible file extension (like 'cpp', 'hpp' or 'md'). Use
           '--list-languages' to show all supported language names and file extensions.
 
+      --syntax-delimiter <regex>
+          Reset syntax highlighting state before each line matching a regular expression. Useful for
+          independent snippets or shell history entries with unmatched quotes. Delimiter lines are
+          still printed and highlighted. Matches exclude line endings and are evaluated before
+          wrapping. For example, '--syntax-delimiter=^---$' starts a new section at each '---' line.
+
       --fallback-syntax <fallback-syntax>
           Set a fallback language for syntax highlighting when auto-detection fails. Unlike
           '--language', this is only used when no syntax could be detected from filename, custom
           syntax mappings, or first-line detection.
           
           [aliases: --fallback-language]
+
+      --highlight-pattern <regex>
+          Highlight lines matching a regular expression, using the same style as '--highlight-line'.
+          Matches exclude the line ending and are evaluated before wrapping. Repeat the option to
+          match any of several patterns; it can also be combined with '--highlight-line'. Use '(?i)'
+          for case-insensitive matching.
 
   -H, --highlight-line <N:M>
           Highlight the specified line ranges with a different background color For example:
@@ -51,11 +65,44 @@ Options:
             '--highlight-line :40' highlights lines 1 to 40
             '--highlight-line 40:' highlights lines 40 to the end of the file
             '--highlight-line 30:+10' highlights lines 30 to 40
+            '--highlight-line 30:40~2' highlights every second line from 30 to 40
+            '--highlight-line 30~2' highlights every second line from 30 onward
+
+      --osc8
+          Link file headers and line numbers using OSC 8 hyperlinks.
+
+      --osc8-highlight
+          Link only highlighted line numbers using OSC 8 hyperlinks.
+
+      --hyperlink-format <URI>
+          Set the URI template for OSC 8 links. '{path}' is replaced by the percent-encoded absolute
+          path and '{line}' by the line number (1 for headers). The default, 'file://{path}', opens
+          the file. Use an editor-specific template such as 'vscode://file{path}:{line}' to open a
+          particular line. Unnamed stdin has no links. These options require a terminal or pager
+          that supports OSC 8.
 
       --file-name <name>
           Specify the name to display for a file. Useful when piping data to bat from STDIN when bat
           does not otherwise know the filename. Note that the provided file name is also used for
           syntax detection.
+
+      --style-single-file <components>
+          Override the style when displaying one file. Uses the same components and +/- modifiers as
+          '--style'. Applied after the general style. Multiple inputs include any combination of
+          files and '-'. Explicit '--plain', numbering flags, and '--decorations=never' still take
+          precedence.
+
+      --style-stdin <components>
+          Override the style when displaying only standard input. Uses the same components and +/-
+          modifiers as '--style'. Applied after the general style. Multiple inputs include any
+          combination of files and '-'. Explicit '--plain', numbering flags, and
+          '--decorations=never' still take precedence.
+
+      --style-multiple-files <components>
+          Override the style when displaying multiple inputs. Uses the same components and +/-
+          modifiers as '--style'. Applied after the general style. Multiple inputs include any
+          combination of files and '-'. Explicit '--plain', numbering flags, and
+          '--decorations=never' still take precedence.
 
   -d, --diff
           Only show lines that have been added/removed/modified with respect to the Git index. Use
@@ -68,11 +115,14 @@ Options:
           Set the tab width to T spaces. Use a width of 0 to pass tabs through directly
 
       --wrap <mode>
-          Specify the text-wrapping mode (*auto*, never, character, word). The '--terminal-width'
-          option can be used in addition to control the output width.
+          Specify the text-wrapping mode (*auto*, never, character, word, truncate). The
+          '--terminal-width' option can be used in addition to control the output width. In truncate
+          mode, long lines end with an ellipsis. Tabs are expanded, using eight columns when
+          '--tabs=0'.
 
   -S, --chop-long-lines
-          Truncate all lines longer than screen width. Alias for '--wrap=never'.
+          Disable wrapping. Alias for '--wrap=never'. The pager may scroll long lines horizontally.
+          Use '--wrap=truncate' to truncate output instead.
 
       --terminal-width <width>
           Explicitly set the width of the terminal instead of determining it automatically. If
@@ -103,10 +153,17 @@ Options:
           Specify when to use ANSI sequences for italic text in the output. Possible values: always,
           *never*.
 
+      --theme-background <when>
+          Apply the theme's background colors to highlighted text. This includes backgrounds
+          assigned to individual syntax tokens. Highlighted lines take precedence over theme
+          backgrounds. Requires colored output. Possible values: always, *never*.
+
       --decorations <when>
           Specify when to use the decorations that have been specified via '--style'. The automatic
           mode only enables decorations if an interactive terminal is detected. The always mode will
-          show decorations even when piping output. Possible values: *auto*, never, always.
+          show decorations even when piping output. The compact mode always shows the selected
+          decorations, uses single-line file headings, and omits horizontal rules around files.
+          Possible values: *auto*, never, always, compact.
 
   -f, --force-colorization
           Alias for '--decorations=always --color=always'. This is useful if the output of bat is
@@ -123,12 +180,30 @@ Options:
           the built-in 'minus' pager. To control when the pager is used, see the '--paging' option.
           Example: '--pager "less -RF"'.
 
+      --pager-arg=<arg>
+          Append a literal argument after the selected pager's existing arguments, including the
+          default options supplied to less. Repeat this option for multiple arguments. Arguments are
+          passed directly, without shell expansion. For example, --pager-arg=+100 opens less at line
+          100 without replacing BAT_PAGER or --pager. Use --pager-arg='-Pmy prompt' for an argument
+          containing spaces. The built-in pager does not accept additional arguments.
+
+      --fail-if-syntax-unsupported
+          Skip inputs without a specific syntax, producing no output or diagnostic for those inputs
+          and exiting with a nonzero status. Plain Text and binary inputs are unsupported;
+          --binary=as-text permits binary input with a recognized syntax. Explicit languages,
+          mappings, first-line detection, and --file-name still apply. A specific --fallback-syntax
+          is accepted. Other errors are reported normally. Disables paging for use in input
+          preprocessor chains.
+
   -m, --map-syntax <glob:syntax>
-          Map a glob pattern to an existing syntax name. The glob pattern is matched on the full
-          path and the filename. For example, to highlight *.build files with the Python syntax, use
-          -m '*.build:Python'. To highlight files named '.myignore' with the Git Ignore syntax, use
-          -m '.myignore:Git Ignore'. Note that the right-hand side is the *name* of the syntax, not
-          a file extension.
+          Map a glob pattern to an existing syntax name. Alternatively, define a language alias with
+          'alias=syntax', for example -m 'csharp=C#'. Aliases match --language and --fallback-syntax
+          case-insensitively and do not affect filename detection. Alias targets must be existing
+          syntax names or extensions; aliases do not chain. The last definition of an alias takes
+          precedence. The glob pattern is matched on the full path and the filename. For example, to
+          highlight *.build files with the Python syntax, use -m '*.build:Python'. To highlight
+          files named '.myignore' with the Git Ignore syntax, use -m '.myignore:Git Ignore'. Note
+          that the right-hand side is the *name* of the syntax, not a file extension.
 
       --ignored-suffix <ignored-suffix>
           Ignore extension. For example:
@@ -147,6 +222,12 @@ Options:
               * auto:system: Detect the color scheme from the system-wide preference (macOS only).
             * dark: Use the dark theme specified by '--theme-dark'.
             * light: Use the light theme specified by '--theme-light'.
+
+      --set-theme-color <name> <RRGGBB>
+          Override a global theme color without rebuilding theme assets. Supported names:
+          foreground, gutterForeground, lineHighlight. Colors are six hexadecimal digits (RRGGBB or
+          '#RRGGBB'). Repeat this option to set multiple colors; the last value for a name wins. For
+          example: --set-theme-color lineHighlight 444444.
 
       --theme-light <theme>
           Sets the theme name for syntax highlighting used when the terminal uses a light
@@ -205,14 +286,30 @@ Options:
             * auto: same as 'default', unless the output is piped.
             * plain: disables all available components.
             * changes: show Git modification markers.
+            * changes-highlight: highlight lines with Git change markers.
             * header: alias for 'header-filename'.
             * header-filename: show filenames before the content.
             * header-filesize: show file sizes before the content.
+            * highlight-indicator: mark highlighted lines with '>'.
+                    Shown only when highlight ranges are configured.
+            * header-path: show absolute source paths.
+            * header-modified: show modification times in UTC.
+            * header-permissions: show file permissions.
             * grid: vertical/horizontal lines to separate side bar
                     and the header from the content.
+            * grid-vertical: only the vertical line separating the side bar.
             * rule: horizontal lines to delimit files.
             * numbers: show line numbers in the side bar.
+            * sidebar: show line numbers and Git modification markers.
             * snip: draw separation lines between distinct line ranges.
+
+      --max-bytes <N>
+          Read at most N bytes from each input, before line buffering. --head is an alias. Useful
+          for devices and streams that may not contain newlines. A zero limit reads no content. This
+          is a byte limit, so input may end within a multibyte character. Binary detection and
+          output formatting still apply; use --binary=as-text to display binary bytes. When using
+          LESSOPEN, the limit applies to the preprocessor output; it does not bound the
+          preprocessor's own reads.
 
   -r, --line-range <N:M>
           Only print the specified range of lines for each file. For example:
@@ -224,6 +321,9 @@ Options:
             '--line-range 30:+10' prints lines 30 to 40
             '--line-range 35::5' prints lines 30 to 40 (line 35 with 5 lines of context)
             '--line-range 30:40:2' prints lines 28 to 42 (range 30-40 with 2 lines of context)
+            '--line-range 30:40~2' prints every second line from 30 to 40
+            '--line-range 30~2' prints every second line from 30 onward. Increments must be positive
+            and start at the range's lower bound (at least line 1).
 
   -L, --list-languages
           Display a list of supported languages for syntax highlighting.
@@ -235,11 +335,30 @@ Options:
           automatically disabled in unbuffered mode, and syntax highlighting may be imperfect on
           partial lines.
 
+      --no-system-config
+          Ignore the system-wide configuration file while still loading the user configuration
+          (including BAT_CONFIG_PATH) and environment options. This option must be passed on the
+          command line.
+
       --completion <SHELL>
           Show shell completion for a certain shell. [possible values: bash, fish, zsh, ps1]
 
+      --show-config [<field>]
+          Show configured argument values after merging system/user config files, environment
+          variables, and command-line arguments. List configured fields in alphabetical order,
+          omitting parser defaults. With a field name (for example, --show-config theme), print its
+          values without a label, including its parser default if present. An unset field produces
+          no output. Repeatable values retain their order and automatic modes remain unresolved.
+          This does not read input files, load assets, probe terminal colors, or start a pager.
+
       --diagnostic
           Show diagnostic information for bug reports.
+
+      --warning <kind>
+          Enable optional input warnings: 'none' (default) or 'missing-trailing-newline'. A missing
+          final newline is reported below formatted output, or on standard error in plain redirected
+          output. Empty files and final lines excluded by '--line-range' do not produce this
+          warning.
 
   -E, --quiet-empty
           When this flag is set, bat will produce no output at all when the input is empty. This is

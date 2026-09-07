@@ -104,7 +104,7 @@ pub fn get_languages(config: &Config, cache_dir: &Path) -> Result<String> {
     let mut languages = assets
         .get_syntaxes()?
         .iter()
-        .filter(|syntax| !syntax.hidden && !syntax.file_extensions.is_empty())
+        .filter(|syntax| !syntax.hidden)
         .cloned()
         .collect::<Vec<_>>();
 
@@ -254,8 +254,12 @@ pub fn list_themes(
         ))?;
     }
 
-    let mut output_type =
-        OutputType::from_mode(config.paging_mode, config.wrapping_mode, config.pager)?;
+    let mut output_type = OutputType::from_mode_with_args(
+        config.paging_mode,
+        config.wrapping_mode,
+        config.pager,
+        &config.pager_args,
+    )?;
     let mut writer = output_type.handle()?;
     writer.write_fmt(format_args!("{buf}"))?;
 
@@ -377,6 +381,13 @@ fn invoke_bugreport(app: &App, cache_dir: &Path) {
 /// `Ok(false)` if any intermediate errors occurred (were printed).
 fn run() -> Result<bool> {
     let app = App::new()?;
+    if let Some(field) = app.matches.get_one::<String>("show-config") {
+        if app.matches.subcommand().is_some() {
+            return Err("--show-config cannot be combined with a subcommand".into());
+        }
+        write!(io::stdout(), "{}", app.show_config(field)?)?;
+        return Ok(true);
+    }
     let config_dir = PROJECT_DIRS.config_dir();
     let cache_dir = PROJECT_DIRS.cache_dir();
 

@@ -79,7 +79,7 @@ impl App {
         let number_from_cli = cli_matches.get_flag("number");
         let number_nonblank_from_cli = cli_matches.get_flag("number-nonblank");
 
-        let matches = Self::matches(interactive_output)?;
+        let matches = Self::matches(interactive_output, cli_matches.get_flag("no-system-config"))?;
 
         if matches.get_flag("help") {
             let help_type = if wild::args_os().any(|arg| arg == "--help") {
@@ -88,30 +88,7 @@ impl App {
                 HelpType::Short
             };
 
-            let use_pager = match matches.get_one::<String>("paging").map(|s| s.as_str()) {
-                Some("never") => false,
-                _ => !matches.get_flag("no-paging"),
-            };
-
-            let use_color = match matches.get_one::<String>("color").map(|s| s.as_str()) {
-                Some("always") => true,
-                Some("never") => false,
-                _ => interactive_output, // auto: use color if interactive
-            };
-
-            let pager = matches.get_one::<String>("pager").map(|s| s.as_str());
-            let theme_options = Self::theme_options_from_matches(&matches);
-            let use_custom_assets = !matches.get_flag("no-custom-assets");
-
-            Self::display_help(
-                interactive_output,
-                help_type,
-                use_pager,
-                use_color,
-                pager,
-                theme_options,
-                use_custom_assets,
-            )?;
+            Self::display_help(interactive_output, help_type, &matches)?;
             std::process::exit(0);
         }
 
@@ -126,11 +103,7 @@ impl App {
     fn display_help(
         interactive_output: bool,
         help_type: HelpType,
-        use_pager: bool,
-        use_color: bool,
-        pager: Option<&str>,
-        theme_options: ThemeOptions,
-        use_custom_assets: bool,
+        matches: &ArgMatches,
     ) -> Result<()> {
         use crate::assets::assets_from_cache_or_binary;
         use crate::directories::PROJECT_DIRS;
@@ -142,6 +115,22 @@ impl App {
             theme::theme,
             PagingMode,
         };
+
+        let use_pager = match matches.get_one::<String>("paging").map(|s| s.as_str()) {
+            Some("never") => false,
+            _ => !matches.get_flag("no-paging"),
+        };
+        let use_color = matches.get_flag("force-colorization")
+            || match matches.get_one::<String>("color").map(|s| s.as_str()) {
+                Some("always") => true,
+                Some("never") => false,
+                _ => interactive_output,
+            };
+        let pager = matches.get_one::<String>("pager").map(|s| s.as_str());
+        let pager_args = matches
+            .get_many::<String>("pager-arg")
+            .map(|args| args.cloned().collect())
+            .unwrap_or_default();
 
         let mut cmd = clap_app::build_app(interactive_output);
         let help_text = match help_type {
@@ -161,15 +150,17 @@ impl App {
             style_components: StyleComponents::new(StyleComponent::Plain.components(false)),
             paging_mode,
             pager,
+            pager_args,
             colored_output: use_color,
             true_color: use_color,
             language: if use_color { Some("help") } else { None },
-            theme: theme(theme_options).to_string(),
+            theme: theme(Self::theme_options_from_matches(matches)).to_string(),
+            theme_colors: Self::theme_colors_from_matches(matches)?,
             ..Default::default()
         };
 
         let cache_dir = PROJECT_DIRS.cache_dir();
-        let assets = assets_from_cache_or_binary(use_custom_assets, cache_dir)?;
+        let assets = assets_from_cache_or_binary(!matches.get_flag("no-custom-assets"), cache_dir)?;
         Controller::new(&help_config, &assets)
             .run(inputs, None)
             .ok();
@@ -195,7 +186,7 @@ impl App {
         clap_app::build_app(interactive_output).get_matches_from(wild::args_os())
     }
 
-    fn matches(interactive_output: bool) -> Result<ArgMatches> {
+    fn matches(interactive_output: bool, skip_system_config: bool) -> Result<ArgMatches> {
         // Check if we should skip config file processing for special arguments
         // that don't require full application setup (version, diagnostic)
         let should_skip_config = wild::args_os().any(|arg| {
@@ -229,7 +220,7 @@ impl App {
         // Read arguments from bats config file
         let config_args = match get_args_from_env_opts_var() {
             Some(result) => result,
-            None => get_args_from_config_file(),
+            None => get_args_from_config_file(skip_system_config),
         };
 
         // For help, ignore config file parse errors (use empty config instead)
@@ -267,7 +258,7 @@ impl App {
     }
 
     pub fn config(&self, inputs: &[Input]) -> Result<Config<'_>> {
-        let style_components = self.style_components()?;
+        let style_components = self.style_components(inputs)?;
 
         let extra_plain = self.matches.get_count("plain") > 1;
         let plain_last_index = self
@@ -334,10 +325,17 @@ impl App {
             // later args take precedence over earlier ones, hence `.rev()`
             // see: https://github.com/sharkdp/bat/pull/2755#discussion_r1456416875
             for from_to in values.rev() {
+                // Preserve filename globs containing '=' when a ':' is present.
+                if !from_to.contains(':') {
+                    if let Some((alias, target)) = from_to.split_once('=') {
+                        syntax_mapping.insert_language_alias(alias, target)?;
+                        continue;
+                    }
+                }
                 let parts: Vec<_> = from_to.split(':').collect();
 
                 if parts.len() != 2 {
-                    return Err("Invalid syntax mapping. The format of the -m/--map-syntax option is '<glob-pattern>:<syntax-name>'. For example: '*.cpp:C++'.".into());
+                    return Err("Invalid syntax mapping. The format of the -m/--map-syntax option is '<glob-pattern>:<syntax-name>'. For example: '*.cpp:C++'. Language aliases use '<alias>=<syntax-name>', for example 'csharp=C#'.".into());
                 }
 
                 syntax_mapping.insert(parts[0], MappingTarget::MapTo(parts[1]))?;
@@ -382,6 +380,10 @@ impl App {
                 .matches
                 .get_one::<String>("fallback-syntax")
                 .map(|s| s.as_str()),
+            syntax_delimiter: self
+                .matches
+                .get_one::<regex::Regex>("syntax-delimiter")
+                .cloned(),
             show_nonprintable: self.matches.get_flag("show-all"),
             nonprintable_notation: match self
                 .matches
@@ -395,6 +397,7 @@ impl App {
             binary: match self.matches.get_one::<String>("binary").map(|s| s.as_str()) {
                 Some("as-text") => BinaryBehavior::AsText,
                 Some("no-printing") => BinaryBehavior::NoPrinting,
+                Some("skip") => BinaryBehavior::Skip,
                 _ => unreachable!("other values for --binary are not allowed"),
             },
             wrapping_mode: {
@@ -404,10 +407,15 @@ impl App {
                     match self.matches.get_one::<String>("wrap").map(|s| s.as_str()) {
                         Some("character") => WrappingMode::Character,
                         Some("word") => WrappingMode::Word,
+                        Some("truncate") => WrappingMode::Truncate,
                         Some("never") => WrappingMode::NoWrapping(true),
                         Some("auto") | None => {
+                            let has_sidebar = style_components.numbers();
+                            #[cfg(feature = "git")]
+                            let has_sidebar = has_sidebar || style_components.changes();
+
                             if self.interactive_output || maybe_term_width.is_some() {
-                                if style_components.plain() && maybe_term_width.is_none() {
+                                if !has_sidebar && maybe_term_width.is_none() {
                                     WrappingMode::NoWrapping(false)
                                 } else {
                                     WrappingMode::Character
@@ -433,14 +441,16 @@ impl App {
             term_width: maybe_term_width.unwrap_or(Term::stdout().size().1 as usize),
             loop_through: !(self.interactive_output
                 || self.matches.get_one::<String>("color").map(|s| s.as_str()) == Some("always")
-                || self
-                    .matches
-                    .get_one::<String>("decorations")
-                    .map(|s| s.as_str())
-                    == Some("always")
+                || matches!(
+                    self.matches
+                        .get_one::<String>("decorations")
+                        .map(String::as_str),
+                    Some("always" | "compact")
+                )
                 || self.matches.get_flag("force-colorization")
                 || self.number_from_cli
-                || self.number_nonblank_from_cli),
+                || self.number_nonblank_from_cli
+                || self.matches.get_one::<String>("wrap").map(|s| s.as_str()) == Some("truncate")),
             tab_width: self
                 .matches
                 .get_one::<String>("tabs")
@@ -479,11 +489,19 @@ impl App {
                     .map(|s| s.as_str()),
                 "--sanitize",
             ),
+            fail_if_syntax_unsupported: self.matches.get_flag("fail-if-syntax-unsupported"),
             quiet_empty: self.matches.get_flag("quiet-empty"),
+            warn_missing_newline: self
+                .matches
+                .get_one::<String>("warning")
+                .map(String::as_str)
+                == Some("missing-trailing-newline"),
+            max_bytes: self.matches.get_one::<u64>("max-bytes").copied(),
             unbuffered: self.matches.get_flag("unbuffered"),
             number_nonblank: self.matches.get_flag("number-nonblank")
                 || self.number_nonblank_from_cli,
             theme: theme(self.theme_options()).to_string(),
+            theme_colors: Self::theme_colors_from_matches(&self.matches)?,
             visible_lines: match self.matches.try_contains_id("diff").unwrap_or_default()
                 && self.matches.get_flag("diff")
             {
@@ -505,11 +523,37 @@ impl App {
                 ),
             },
             style_components,
+            compact_headers: self
+                .matches
+                .get_one::<String>("decorations")
+                .map(String::as_str)
+                == Some("compact"),
             syntax_mapping,
             pager: self.matches.get_one::<String>("pager").map(|s| s.as_str()),
+            pager_args: self
+                .matches
+                .get_many::<String>("pager-arg")
+                .map(|args| args.cloned().collect())
+                .unwrap_or_default(),
             use_italic_text: self
                 .matches
                 .get_one::<String>("italic-text")
+                .map(|s| s.as_str())
+                == Some("always"),
+            hyperlink: if self.matches.get_flag("osc8") || self.matches.get_flag("osc8-highlight") {
+                Some(bat::hyperlink::Hyperlink::new(
+                    self.matches
+                        .get_one::<String>("hyperlink-format")
+                        .expect("default format"),
+                    self.matches.get_flag("osc8-highlight"),
+                )?)
+            } else {
+                None
+            },
+
+            use_theme_background: self
+                .matches
+                .get_one::<String>("theme-background")
                 .map(|s| s.as_str())
                 == Some("always"),
             highlighted_lines: self
@@ -519,6 +563,11 @@ impl App {
                 .transpose()?
                 .map(LineRanges::from)
                 .map(HighlightedLineRanges)
+                .unwrap_or_default(),
+            highlighted_patterns: self
+                .matches
+                .get_many::<regex::Regex>("highlight-pattern")
+                .map(|patterns| patterns.cloned().collect())
                 .unwrap_or_default(),
             use_custom_assets: !self.matches.get_flag("no-custom-assets"),
             #[cfg(feature = "lessopen")]
@@ -535,6 +584,69 @@ impl App {
                 None
             },
         })
+    }
+
+    /// Display argument values after config files, environment, and CLI parsing.
+    /// Keep automatic modes and ordered repeatable values as configured.
+    pub fn show_config(&self, field: &str) -> Result<String> {
+        use clap::parser::ValueSource;
+        use std::fmt::Write as _;
+        let app = clap_app::build_app(self.interactive_output);
+        let excluded = [
+            "help",
+            "version",
+            "show-config",
+            "no-config",
+            "completion",
+            "diagnostic",
+            "list-languages",
+            "list-themes",
+            "config-file",
+            "generate-config-file",
+            "config-dir",
+            "cache-dir",
+            "acknowledgements",
+        ];
+        let mut fields = app
+            .get_arguments()
+            .filter_map(|arg| arg.get_long().map(|name| (name, arg.get_id().as_str())))
+            .filter(|(_, id)| !excluded.contains(id))
+            .collect::<Vec<_>>();
+        fields.sort_unstable();
+        let mut output = String::new();
+        if field != "*" {
+            let id = fields
+                .iter()
+                .find(|(name, _)| *name == field)
+                .map(|(_, id)| *id)
+                .ok_or_else(|| format!("unknown configuration field '{field}'"))?;
+            if let Some(values) = self.matches.get_raw(id) {
+                for value in values {
+                    writeln!(
+                        output,
+                        "{}",
+                        bat::sanitize_for_terminal(&value.to_string_lossy())
+                    )?;
+                }
+            }
+            return Ok(output);
+        }
+        for (name, id) in fields {
+            // Hide parser defaults when listing the user's configured values.
+            if self.matches.value_source(id) == Some(ValueSource::DefaultValue) {
+                continue;
+            }
+            if let Some(values) = self.matches.get_raw(id) {
+                for value in values {
+                    writeln!(
+                        output,
+                        "{name}: {}",
+                        bat::sanitize_for_terminal(&value.to_string_lossy())
+                    )?;
+                }
+            }
+        }
+        Ok(output)
     }
 
     pub fn inputs(&self) -> Result<Vec<Input<'_>>> {
@@ -627,16 +739,25 @@ impl App {
         None
     }
 
-    fn style_components(&self) -> Result<StyleComponents> {
+    fn style_components(&self, inputs: &[Input]) -> Result<StyleComponents> {
         let matches = &self.matches;
+        let context = if inputs.len() > 1 {
+            "style-multiple-files"
+        } else if inputs.first().is_some_and(Input::is_stdin) {
+            "style-stdin"
+        } else {
+            "style-single-file"
+        };
         let mut styled_components = match self.forced_style_components() {
             Some(forced_components) => forced_components,
 
             // Parse the `--style` arguments and merge them.
-            None if matches.contains_id("style") => {
+            None if matches.contains_id("style") || matches.contains_id(context) => {
                 let lists = matches
                     .get_many::<String>("style")
-                    .expect("styles present")
+                    .into_iter()
+                    .flatten()
+                    .chain(matches.get_many::<String>(context).into_iter().flatten())
                     .map(|v| StyleComponentList::from_str(v))
                     .collect::<Result<Vec<StyleComponentList>>>()?;
 
@@ -669,6 +790,16 @@ impl App {
         Self::theme_options_from_matches(&self.matches)
     }
 
+    fn theme_colors_from_matches(matches: &ArgMatches) -> Result<bat::theme::ThemeColorOverrides> {
+        let mut colors = bat::theme::ThemeColorOverrides::default();
+        if let Some(mut values) = matches.get_many::<String>("set-theme-color") {
+            while let (Some(name), Some(value)) = (values.next(), values.next()) {
+                colors.set(name, value)?;
+            }
+        }
+        Ok(colors)
+    }
+
     fn theme_options_from_matches(matches: &ArgMatches) -> ThemeOptions {
         let theme = matches
             .get_one::<String>("theme")
@@ -685,5 +816,74 @@ impl App {
             theme_dark,
             theme_light,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wrapping_mode(args: &[&str], interactive_output: bool) -> WrappingMode {
+        let app = App {
+            matches: clap_app::build_app(interactive_output).get_matches_from(
+                ["bat", "--paging=never"]
+                    .into_iter()
+                    .chain(args.iter().copied()),
+            ),
+            interactive_output,
+            number_from_cli: false,
+            number_nonblank_from_cli: false,
+        };
+        let wrapping_mode = app.config(&[]).unwrap().wrapping_mode;
+        wrapping_mode
+    }
+
+    #[test]
+    fn automatic_wrapping_leaves_non_sidebar_styles_to_the_terminal() {
+        for style in ["plain", "header", "grid", "rule,snip", "header,grid,snip"] {
+            assert_eq!(
+                wrapping_mode(&[&format!("--style={style}")], true),
+                WrappingMode::NoWrapping(false),
+                "{style}"
+            );
+        }
+        assert_eq!(
+            wrapping_mode(&["--style=numbers"], true),
+            WrappingMode::Character
+        );
+        #[cfg(feature = "git")]
+        assert_eq!(
+            wrapping_mode(&["--style=changes"], true),
+            WrappingMode::Character
+        );
+    }
+
+    #[test]
+    fn automatic_wrapping_preserves_explicit_width_and_wrap_requests() {
+        for interactive_output in [false, true] {
+            assert_eq!(
+                wrapping_mode(
+                    &["--style=header", "--terminal-width=20"],
+                    interactive_output
+                ),
+                WrappingMode::Character
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=header", "--wrap=character"], interactive_output),
+                WrappingMode::Character
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=header", "--wrap=word"], interactive_output),
+                WrappingMode::Word
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=numbers", "--wrap=never"], interactive_output),
+                WrappingMode::NoWrapping(true)
+            );
+        }
+        assert_eq!(
+            wrapping_mode(&["--style=numbers"], false),
+            WrappingMode::NoWrapping(false)
+        );
     }
 }

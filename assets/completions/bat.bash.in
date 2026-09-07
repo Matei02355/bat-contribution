@@ -87,7 +87,7 @@ _bat() {
 		__bat_escape_completions
 		return 0
 		;;
-	-H | --highlight-line | \
+	-H | --highlight-line | --highlight-pattern | --syntax-delimiter | --hyperlink-format | \
 	--diff-context | \
 	--tabs | \
 	--terminal-width | \
@@ -117,11 +117,15 @@ _bat() {
 		return 0
 		;;
 	--wrap)
-		COMPREPLY=($(compgen -W "auto never character word" -- "$cur"))
+		COMPREPLY=($(compgen -W "auto never character word truncate" -- "$cur"))
+		return 0
+		;;
+	--warning)
+		COMPREPLY=($(compgen -W "none missing-trailing-newline" -- "$cur"))
 		return 0
 		;;
 	--binary)
-		COMPREPLY=($(compgen -W "no-printing as-text" -- "$cur"))
+		COMPREPLY=($(compgen -W "no-printing as-text skip" -- "$cur"))
 		return 0
 		;;
 	--nonprintable-notation)
@@ -140,16 +144,27 @@ _bat() {
 		COMPREPLY=($(compgen -W "bash fish zsh ps1" -- "$cur"))
 		return 0
 		;;
-	--color | --decorations | --paging)
+	--decorations)
+		COMPREPLY=($(compgen -W "auto never always compact" -- "$cur"))
+		return 0
+		;;
+	--color | --paging)
 		COMPREPLY=($(compgen -W "auto never always" -- "$cur"))
 		return 0
 		;;
-	--italic-text)
+	--italic-text | --theme-background)
 		COMPREPLY=($(compgen -W "always never" -- "$cur"))
+		return 0
+		;;
+	--pager-arg)
 		return 0
 		;;
 	--pager)
 		COMPREPLY=($(compgen -c -- "$cur"))
+		return 0
+		;;
+	--set-theme-color)
+		COMPREPLY=($(compgen -W "foreground gutterForeground lineHighlight" -- "$cur"))
 		return 0
 		;;
 	--theme)
@@ -165,7 +180,7 @@ _bat() {
 		__bat_escape_completions
 		return 0
 		;;
-	--style)
+	--style | --style-single-file | --style-stdin | --style-multiple-files)
 		# shellcheck disable=SC2034
 		local -a styles=(
 			default
@@ -173,12 +188,19 @@ _bat() {
 			auto
 			plain
 			changes
+			changes-highlight
 			header
 			header-filename
 			header-filesize
+			highlight-indicator
+			header-path
+			header-modified
+			header-permissions
 			grid
+			grid-vertical
 			rule
 			numbers
+			sidebar
 			snip
 		)
 		# shellcheck disable=SC2016
@@ -199,10 +221,16 @@ _bat() {
 			--show-all
 			--nonprintable-notation
 			--binary
+			--warning
 			--plain
 			--language
 			--highlight-line
+			--highlight-pattern
+			--syntax-delimiter
 			--file-name
+			--osc8
+			--osc8-highlight
+			--hyperlink-format
 			--diff
 			--diff-context
 			--tabs
@@ -212,14 +240,18 @@ _bat() {
 			--number
 			--color
 			--italic-text
+			--theme-background
 			--decorations
 			--force-colorization
 			--paging
 			--no-paging
 			--pager
+			--pager-arg=
+			--fail-if-syntax-unsupported
 			--map-syntax
 			--ignored-suffix
 			--theme
+			--set-theme-color
 			--theme-dark
 			--theme-light
 			--list-themes
@@ -228,6 +260,11 @@ _bat() {
 			--sanitize
 			--strip-ansi
 			--style
+			--style-single-file
+			--style-stdin
+			--style-multiple-files
+			--max-bytes
+			--head
 			--line-range
 			--list-languages
 			--lessopen
@@ -240,8 +277,10 @@ _bat() {
 			--version
 			--cache-dir
 			--config-dir
+			--show-config
 			--config-file
 			--generate-config-file
+			--no-system-config
 			--no-config
 			--no-custom-assets
 			--no-lessopen

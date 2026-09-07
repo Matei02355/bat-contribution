@@ -9,12 +9,20 @@ pub enum StyleComponent {
     Auto,
     #[cfg(feature = "git")]
     Changes,
+    #[cfg(feature = "git")]
+    ChangesHighlight,
     Grid,
+    GridVertical,
     Rule,
     Header,
     HeaderFilename,
     HeaderFilesize,
+    HighlightIndicator,
+    HeaderPath,
+    HeaderModified,
+    HeaderPermissions,
     LineNumbers,
+    Sidebar,
     Snip,
     Full,
     Default,
@@ -33,19 +41,37 @@ impl StyleComponent {
             }
             #[cfg(feature = "git")]
             StyleComponent::Changes => &[StyleComponent::Changes],
+            #[cfg(feature = "git")]
+            StyleComponent::ChangesHighlight => &[StyleComponent::ChangesHighlight],
             StyleComponent::Grid => &[StyleComponent::Grid],
+            StyleComponent::GridVertical => &[StyleComponent::GridVertical],
             StyleComponent::Rule => &[StyleComponent::Rule],
             StyleComponent::Header => &[StyleComponent::HeaderFilename],
             StyleComponent::HeaderFilename => &[StyleComponent::HeaderFilename],
             StyleComponent::HeaderFilesize => &[StyleComponent::HeaderFilesize],
+            StyleComponent::HighlightIndicator => &[StyleComponent::HighlightIndicator],
+            StyleComponent::HeaderPath => &[StyleComponent::HeaderPath],
+            StyleComponent::HeaderModified => &[StyleComponent::HeaderModified],
+            StyleComponent::HeaderPermissions => &[StyleComponent::HeaderPermissions],
             StyleComponent::LineNumbers => &[StyleComponent::LineNumbers],
+            StyleComponent::Sidebar => &[
+                #[cfg(feature = "git")]
+                StyleComponent::Changes,
+                StyleComponent::LineNumbers,
+            ],
             StyleComponent::Snip => &[StyleComponent::Snip],
             StyleComponent::Full => &[
                 #[cfg(feature = "git")]
                 StyleComponent::Changes,
+                #[cfg(feature = "git")]
+                StyleComponent::ChangesHighlight,
                 StyleComponent::Grid,
                 StyleComponent::HeaderFilename,
                 StyleComponent::HeaderFilesize,
+                StyleComponent::HighlightIndicator,
+                StyleComponent::HeaderPath,
+                StyleComponent::HeaderModified,
+                StyleComponent::HeaderPermissions,
                 StyleComponent::LineNumbers,
                 StyleComponent::Snip,
             ],
@@ -70,12 +96,20 @@ impl FromStr for StyleComponent {
             "auto" => Ok(StyleComponent::Auto),
             #[cfg(feature = "git")]
             "changes" => Ok(StyleComponent::Changes),
+            #[cfg(feature = "git")]
+            "changes-highlight" => Ok(StyleComponent::ChangesHighlight),
             "grid" => Ok(StyleComponent::Grid),
+            "grid-vertical" => Ok(StyleComponent::GridVertical),
             "rule" => Ok(StyleComponent::Rule),
             "header" => Ok(StyleComponent::Header),
             "header-filename" => Ok(StyleComponent::HeaderFilename),
             "header-filesize" => Ok(StyleComponent::HeaderFilesize),
+            "highlight-indicator" => Ok(StyleComponent::HighlightIndicator),
+            "header-path" => Ok(StyleComponent::HeaderPath),
+            "header-modified" => Ok(StyleComponent::HeaderModified),
+            "header-permissions" => Ok(StyleComponent::HeaderPermissions),
             "numbers" => Ok(StyleComponent::LineNumbers),
+            "sidebar" => Ok(StyleComponent::Sidebar),
             "snip" => Ok(StyleComponent::Snip),
             "full" => Ok(StyleComponent::Full),
             "default" => Ok(StyleComponent::Default),
@@ -98,6 +132,11 @@ impl StyleComponents {
         self.0.contains(&StyleComponent::Changes)
     }
 
+    #[cfg(feature = "git")]
+    pub fn changes_highlight(&self) -> bool {
+        self.0.contains(&StyleComponent::ChangesHighlight)
+    }
+
     pub fn grid(&self) -> bool {
         self.0.contains(&StyleComponent::Grid)
     }
@@ -106,8 +145,17 @@ impl StyleComponents {
         self.0.contains(&StyleComponent::Rule)
     }
 
+    /// Whether the sidebar has a vertical separator, with or without horizontal borders.
+    pub fn grid_vertical(&self) -> bool {
+        self.grid() || self.0.contains(&StyleComponent::GridVertical)
+    }
+
     pub fn header(&self) -> bool {
-        self.header_filename() || self.header_filesize()
+        self.header_filename()
+            || self.header_filesize()
+            || self.header_path()
+            || self.header_modified()
+            || self.header_permissions()
     }
 
     pub fn header_filename(&self) -> bool {
@@ -116,6 +164,22 @@ impl StyleComponents {
 
     pub fn header_filesize(&self) -> bool {
         self.0.contains(&StyleComponent::HeaderFilesize)
+    }
+
+    pub fn highlight_indicator(&self) -> bool {
+        self.0.contains(&StyleComponent::HighlightIndicator)
+    }
+
+    pub fn header_path(&self) -> bool {
+        self.0.contains(&StyleComponent::HeaderPath)
+    }
+
+    pub fn header_modified(&self) -> bool {
+        self.0.contains(&StyleComponent::HeaderModified)
+    }
+
+    pub fn header_permissions(&self) -> bool {
+        self.0.contains(&StyleComponent::HeaderPermissions)
     }
 
     pub fn numbers(&self) -> bool {

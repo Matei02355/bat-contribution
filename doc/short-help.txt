@@ -17,20 +17,36 @@ Options:
           Show plain style (alias for '--style=plain').
   -l, --language <language>
           Set the language for syntax highlighting.
+      --syntax-delimiter <regex>
+          Reset highlighting before lines matching a regular expression.
       --fallback-syntax <fallback-syntax>
           Set a fallback language for undetected syntaxes. [aliases: --fallback-language]
+      --highlight-pattern <regex>
+          Highlight lines matching a regular expression.
   -H, --highlight-line <N:M>
           Highlight lines N through M.
+      --osc8
+          Link file headers and line numbers using OSC 8 hyperlinks.
+      --osc8-highlight
+          Link only highlighted line numbers using OSC 8 hyperlinks.
+      --hyperlink-format <URI>
+          Set the URI template used by --osc8 and --osc8-highlight.
       --file-name <name>
           Specify the name to display for a file.
+      --style-single-file <components>
+          Override the style when displaying one file.
+      --style-stdin <components>
+          Override the style when displaying only standard input.
+      --style-multiple-files <components>
+          Override the style when displaying multiple inputs.
   -d, --diff
           Only show lines that have been added/removed/modified.
       --tabs <T>
           Set the tab width to T spaces.
       --wrap <mode>
-          Specify the text-wrapping mode (*auto*, never, character, word).
+          Specify the text-wrapping mode (*auto*, never, character, word, truncate).
   -S, --chop-long-lines
-          Truncate all lines longer than screen width. Alias for '--wrap=never'.
+          Disable wrapping. Alias for '--wrap=never'.
   -n, --number
           Show line numbers (alias for '--style=numbers').
   -b, --number-nonblank
@@ -39,14 +55,18 @@ Options:
           When to use colors (*auto*, never, always).
       --italic-text <when>
           Use italics in output (always, *never*)
+      --theme-background <when>
+          Apply theme background colors to text (always, *never*).
       --decorations <when>
-          When to show the decorations (*auto*, never, always).
+          When to show the decorations (*auto*, never, always, compact).
       --paging <when>
           Specify when to use the pager, or use `-P` to disable (*auto*, never, always).
   -m, --map-syntax <glob:syntax>
           Use the specified syntax for files matching the glob pattern ('*.cpp:C++').
       --theme <theme>
           Set the color theme for syntax highlighting.
+      --set-theme-color <name> <RRGGBB>
+          Override a global theme color.
       --theme-light <theme>
           Sets the color theme for syntax highlighting used for light backgrounds.
       --theme-dark <theme>
@@ -57,15 +77,23 @@ Options:
           Squeeze consecutive empty lines.
       --style <components>
           Comma-separated list of style elements to display (*default*, auto, full, plain, changes,
-          header, header-filename, header-filesize, grid, rule, numbers, snip).
+          changes-highlight, header, header-filename, header-filesize, header-path, header-modified,
+          header-permissions, highlight-indicator, grid, grid-vertical, rule, numbers, sidebar,
+          snip).
   -r, --line-range <N:M>
           Only print the lines from N to M.
   -L, --list-languages
           Display all supported languages.
   -u, --unbuffered
           Enable unbuffered input reading for streaming use cases.
+      --no-system-config
+          Ignore the system-wide configuration file.
       --completion <SHELL>
           Show shell completion for a certain shell. [possible values: bash, fish, zsh, ps1]
+      --show-config [<field>]
+          Show merged configuration arguments, optionally for one field.
+      --warning <kind>
+          Enable optional input warnings.
   -E, --quiet-empty
           Produce no output when the input is empty.
   -h, --help
