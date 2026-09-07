@@ -83,6 +83,7 @@ function __bat_style_opts
         "header-filename,filename above content" \
         "header-filesize,filesize above content" \
         "grid,lines b/w sidebar/header/content" \
+        "grid-vertical,vertical sidebar separator" \
         "numbers,line numbers in sidebar" \
         "rule,separate files" \
         "snip,separate ranges"
@@ -119,6 +120,7 @@ set -l wrap_opts '
     never\t
     character\t
     word\t
+    truncate\t
 '
 
 # While --tabs theoretically takes any number, most people should be OK with these.
@@ -143,11 +145,11 @@ set -l special_themes '
 
 complete -c $bat -l acknowledgements -d "Print acknowledgements" -n __fish_is_first_arg
 
-complete -c $bat -l binary -x -a "no-printing as-text" -d "How to treat binary content" -n __bat_no_excl_args
+complete -c $bat -l binary -x -a "no-printing as-text skip" -d "How to treat binary content" -n __bat_no_excl_args
 
 complete -c $bat -l cache-dir -f -d "Show bat's cache directory" -n __fish_is_first_arg
 
-complete -c $bat -s c -l chop-long-lines -d "Truncate all lines longer than screen width" -n __bat_no_excl_args
+complete -c $bat -s S -l chop-long-lines -d "Disable wrapping" -n __bat_no_excl_args
 
 complete -c $bat -l color -x -a "$color_opts" -d "When to use colored output" -n __bat_no_excl_args
 
@@ -176,11 +178,14 @@ complete -c $bat -s h -d "Print a concise overview" -n __fish_is_first_arg
 
 complete -c $bat -l help -f -d "Print all help information" -n __fish_is_first_arg
 
+complete -c $bat -l highlight-pattern -x -d "Highlight lines matching a regular expression" -n __bat_no_excl_args
+complete -c $bat -l syntax-delimiter -x -d "Reset highlighting before matching lines" -n __bat_no_excl_args
 complete -c $bat -s H -l highlight-line -x -d "Highlight line(s) N[:M]" -n __bat_no_excl_args
 
 complete -c $bat -l ignored-suffix -x -d "Ignore extension" -n __bat_no_excl_args
 
 complete -c $bat -l italic-text -x -a "$italic_text_opts" -d "When to use italic text in the output" -n __bat_no_excl_args
+complete -c $bat -l theme-background -x -a "$italic_text_opts" -d "Apply theme background colors to text" -n __bat_no_excl_args
 
 complete -c $bat -s l -l language -x -k -a "(__bat_complete_list_languages)" -d "Set the syntax highlighting language" -n __bat_no_excl_args
 
@@ -194,6 +199,7 @@ complete -c $bat -l list-themes -f -d "List syntax highlighting themes" -n __fis
 
 complete -c $bat -s m -l map-syntax -x -a "(__bat_complete_map_syntax)" -d "Map <glob pattern>:<language syntax>" -n __bat_no_excl_args
 
+complete -c $bat -l no-system-config -d "Ignore the system-wide configuration file"
 complete -c $bat -l no-config -d "Do not use the configuration file"
 
 complete -c $bat -l no-custom-assets -d "Do not load custom assets"
@@ -229,6 +235,9 @@ complete -c $bat -o pp -d "Disable decorations and paging" -n __bat_no_excl_args
 
 complete -c $bat -s P -d "Disable paging" -n __bat_no_excl_args
 
+complete -c $bat -l style-single-file -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
+complete -c $bat -l style-stdin -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
+complete -c $bat -l style-multiple-files -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
 complete -c $bat -l style -x -k -a "(__fish_complete_list , __bat_style_opts)" -d "Specify which non-content elements to display" -n __bat_no_excl_args
 
 complete -c $bat -l tabs -x -a "$tabs_opts" -d "Set tab width" -n __bat_no_excl_args
@@ -268,3 +277,8 @@ complete -c $bat -s h -d "Print a concise overview of $bat-cache help" -n __bat_
 complete -c $bat -l help -f -d "Print all $bat-cache help" -n __bat_cache_no_excl
 
 # vim:ft=fish
+
+complete -c $bat -l osc8 -d "Link file headers and line numbers" -n __bat_no_excl_args
+complete -c $bat -l osc8-highlight -d "Link only highlighted line numbers" -n __bat_no_excl_args
+complete -c $bat -l hyperlink-format -x -d "Set the hyperlink URI template" -n __bat_no_excl_args
+complete -c $bat -l warning -x -a "none missing-trailing-newline" -d "Enable optional input warnings" -n __bat_no_excl_args

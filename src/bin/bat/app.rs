@@ -79,7 +79,7 @@ impl App {
         let number_from_cli = cli_matches.get_flag("number");
         let number_nonblank_from_cli = cli_matches.get_flag("number-nonblank");
 
-        let matches = Self::matches(interactive_output)?;
+        let matches = Self::matches(interactive_output, cli_matches.get_flag("no-system-config"))?;
 
         if matches.get_flag("help") {
             let help_type = if wild::args_os().any(|arg| arg == "--help") {
@@ -93,11 +93,12 @@ impl App {
                 _ => !matches.get_flag("no-paging"),
             };
 
-            let use_color = match matches.get_one::<String>("color").map(|s| s.as_str()) {
-                Some("always") => true,
-                Some("never") => false,
-                _ => interactive_output, // auto: use color if interactive
-            };
+            let use_color = matches.get_flag("force-colorization")
+                || match matches.get_one::<String>("color").map(|s| s.as_str()) {
+                    Some("always") => true,
+                    Some("never") => false,
+                    _ => interactive_output, // auto: use color if interactive
+                };
 
             let pager = matches.get_one::<String>("pager").map(|s| s.as_str());
             let theme_options = Self::theme_options_from_matches(&matches);
@@ -195,7 +196,7 @@ impl App {
         clap_app::build_app(interactive_output).get_matches_from(wild::args_os())
     }
 
-    fn matches(interactive_output: bool) -> Result<ArgMatches> {
+    fn matches(interactive_output: bool, skip_system_config: bool) -> Result<ArgMatches> {
         // Check if we should skip config file processing for special arguments
         // that don't require full application setup (version, diagnostic)
         let should_skip_config = wild::args_os().any(|arg| {
@@ -229,7 +230,7 @@ impl App {
         // Read arguments from bats config file
         let config_args = match get_args_from_env_opts_var() {
             Some(result) => result,
-            None => get_args_from_config_file(),
+            None => get_args_from_config_file(skip_system_config),
         };
 
         // For help, ignore config file parse errors (use empty config instead)
@@ -267,7 +268,7 @@ impl App {
     }
 
     pub fn config(&self, inputs: &[Input]) -> Result<Config<'_>> {
-        let style_components = self.style_components()?;
+        let style_components = self.style_components(inputs)?;
 
         let extra_plain = self.matches.get_count("plain") > 1;
         let plain_last_index = self
@@ -382,6 +383,10 @@ impl App {
                 .matches
                 .get_one::<String>("fallback-syntax")
                 .map(|s| s.as_str()),
+            syntax_delimiter: self
+                .matches
+                .get_one::<regex::Regex>("syntax-delimiter")
+                .cloned(),
             show_nonprintable: self.matches.get_flag("show-all"),
             nonprintable_notation: match self
                 .matches
@@ -395,6 +400,7 @@ impl App {
             binary: match self.matches.get_one::<String>("binary").map(|s| s.as_str()) {
                 Some("as-text") => BinaryBehavior::AsText,
                 Some("no-printing") => BinaryBehavior::NoPrinting,
+                Some("skip") => BinaryBehavior::Skip,
                 _ => unreachable!("other values for --binary are not allowed"),
             },
             wrapping_mode: {
@@ -404,10 +410,15 @@ impl App {
                     match self.matches.get_one::<String>("wrap").map(|s| s.as_str()) {
                         Some("character") => WrappingMode::Character,
                         Some("word") => WrappingMode::Word,
+                        Some("truncate") => WrappingMode::Truncate,
                         Some("never") => WrappingMode::NoWrapping(true),
                         Some("auto") | None => {
+                            let has_sidebar = style_components.numbers();
+                            #[cfg(feature = "git")]
+                            let has_sidebar = has_sidebar || style_components.changes();
+
                             if self.interactive_output || maybe_term_width.is_some() {
-                                if style_components.plain() && maybe_term_width.is_none() {
+                                if !has_sidebar && maybe_term_width.is_none() {
                                     WrappingMode::NoWrapping(false)
                                 } else {
                                     WrappingMode::Character
@@ -440,7 +451,8 @@ impl App {
                     == Some("always")
                 || self.matches.get_flag("force-colorization")
                 || self.number_from_cli
-                || self.number_nonblank_from_cli),
+                || self.number_nonblank_from_cli
+                || self.matches.get_one::<String>("wrap").map(|s| s.as_str()) == Some("truncate")),
             tab_width: self
                 .matches
                 .get_one::<String>("tabs")
@@ -480,6 +492,11 @@ impl App {
                 "--sanitize",
             ),
             quiet_empty: self.matches.get_flag("quiet-empty"),
+            warn_missing_newline: self
+                .matches
+                .get_one::<String>("warning")
+                .map(String::as_str)
+                == Some("missing-trailing-newline"),
             unbuffered: self.matches.get_flag("unbuffered"),
             number_nonblank: self.matches.get_flag("number-nonblank")
                 || self.number_nonblank_from_cli,
@@ -512,6 +529,22 @@ impl App {
                 .get_one::<String>("italic-text")
                 .map(|s| s.as_str())
                 == Some("always"),
+            hyperlink: if self.matches.get_flag("osc8") || self.matches.get_flag("osc8-highlight") {
+                Some(bat::hyperlink::Hyperlink::new(
+                    self.matches
+                        .get_one::<String>("hyperlink-format")
+                        .expect("default format"),
+                    self.matches.get_flag("osc8-highlight"),
+                )?)
+            } else {
+                None
+            },
+
+            use_theme_background: self
+                .matches
+                .get_one::<String>("theme-background")
+                .map(|s| s.as_str())
+                == Some("always"),
             highlighted_lines: self
                 .matches
                 .get_many::<String>("highlight-line")
@@ -519,6 +552,11 @@ impl App {
                 .transpose()?
                 .map(LineRanges::from)
                 .map(HighlightedLineRanges)
+                .unwrap_or_default(),
+            highlighted_patterns: self
+                .matches
+                .get_many::<regex::Regex>("highlight-pattern")
+                .map(|patterns| patterns.cloned().collect())
                 .unwrap_or_default(),
             use_custom_assets: !self.matches.get_flag("no-custom-assets"),
             #[cfg(feature = "lessopen")]
@@ -627,16 +665,25 @@ impl App {
         None
     }
 
-    fn style_components(&self) -> Result<StyleComponents> {
+    fn style_components(&self, inputs: &[Input]) -> Result<StyleComponents> {
         let matches = &self.matches;
+        let context = if inputs.len() > 1 {
+            "style-multiple-files"
+        } else if inputs.first().is_some_and(Input::is_stdin) {
+            "style-stdin"
+        } else {
+            "style-single-file"
+        };
         let mut styled_components = match self.forced_style_components() {
             Some(forced_components) => forced_components,
 
             // Parse the `--style` arguments and merge them.
-            None if matches.contains_id("style") => {
+            None if matches.contains_id("style") || matches.contains_id(context) => {
                 let lists = matches
                     .get_many::<String>("style")
-                    .expect("styles present")
+                    .into_iter()
+                    .flatten()
+                    .chain(matches.get_many::<String>(context).into_iter().flatten())
                     .map(|v| StyleComponentList::from_str(v))
                     .collect::<Result<Vec<StyleComponentList>>>()?;
 
@@ -685,5 +732,74 @@ impl App {
             theme_dark,
             theme_light,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wrapping_mode(args: &[&str], interactive_output: bool) -> WrappingMode {
+        let app = App {
+            matches: clap_app::build_app(interactive_output).get_matches_from(
+                ["bat", "--paging=never"]
+                    .into_iter()
+                    .chain(args.iter().copied()),
+            ),
+            interactive_output,
+            number_from_cli: false,
+            number_nonblank_from_cli: false,
+        };
+        let wrapping_mode = app.config(&[]).unwrap().wrapping_mode;
+        wrapping_mode
+    }
+
+    #[test]
+    fn automatic_wrapping_leaves_non_sidebar_styles_to_the_terminal() {
+        for style in ["plain", "header", "grid", "rule,snip", "header,grid,snip"] {
+            assert_eq!(
+                wrapping_mode(&[&format!("--style={style}")], true),
+                WrappingMode::NoWrapping(false),
+                "{style}"
+            );
+        }
+        assert_eq!(
+            wrapping_mode(&["--style=numbers"], true),
+            WrappingMode::Character
+        );
+        #[cfg(feature = "git")]
+        assert_eq!(
+            wrapping_mode(&["--style=changes"], true),
+            WrappingMode::Character
+        );
+    }
+
+    #[test]
+    fn automatic_wrapping_preserves_explicit_width_and_wrap_requests() {
+        for interactive_output in [false, true] {
+            assert_eq!(
+                wrapping_mode(
+                    &["--style=header", "--terminal-width=20"],
+                    interactive_output
+                ),
+                WrappingMode::Character
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=header", "--wrap=character"], interactive_output),
+                WrappingMode::Character
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=header", "--wrap=word"], interactive_output),
+                WrappingMode::Word
+            );
+            assert_eq!(
+                wrapping_mode(&["--style=numbers", "--wrap=never"], interactive_output),
+                WrappingMode::NoWrapping(true)
+            );
+        }
+        assert_eq!(
+            wrapping_mode(&["--style=numbers"], false),
+            WrappingMode::NoWrapping(false)
+        );
     }
 }

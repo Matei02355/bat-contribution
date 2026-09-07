@@ -454,6 +454,24 @@ bat --completion <shell>
 # see --help for supported shells
 ```
 
+### Editor modelines
+
+Bat recognizes a language hint on the first line, such as `# -*- python -*-`,
+`# -*- mode: python; -*-`, or `# vim: set filetype=python:` (also `ft=` and `syntax=`).
+The language uses the names and extensions from `--list-languages`. A recognized
+hint overrides a filename extension; explicit `--language` and syntax mappings
+take precedence. Unknown hints fall back to normal detection. Only the first line
+is examined, including for stdin; editor settings are never executed.
+
+### Styles for different inputs
+
+Use `--style-single-file`, `--style-stdin`, and `--style-multiple-files` to select
+styles by input type. For example, configure `--style-single-file=plain` and
+`--style-stdin=plain` with `--style-multiple-files=header,rule` to show filenames
+only when concatenating several inputs. A mixture of files and stdin uses the
+multiple-file style throughout. Each context supports the same `+`/`-` modifiers
+as `--style`; explicit plain and numbering flags still take precedence.
+
 ## Customization
 
 ### Highlighting theme
@@ -768,6 +786,7 @@ bat --generate-config-file
 There is also now a systemwide configuration file, which is located under `/etc/bat/config` on
 Linux and Mac OS and `C:\ProgramData\bat\config` on windows. If the system wide configuration
 file is present, the content of the user configuration will simply be appended to it.
+Pass `--no-system-config` on the command line to load only the user configuration.
 
 ### Format
 

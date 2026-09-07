@@ -5,12 +5,12 @@ using namespace System.Management.Automation.Language
 Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $ArrayStyle      = @('default', 'auto', 'full', 'plain', 'changes', 'header', 'header-filename', 'header-filesize', 'grid', 'rule', 'numbers', 'snip')
+    $ArrayStyle      = @('default', 'auto', 'full', 'plain', 'changes', 'header', 'header-filename', 'header-filesize', 'grid', 'grid-vertical', 'rule', 'numbers', 'snip')
     $ArrayCompletion = @('bash', 'fish', 'zsh', 'ps1')
     $ArrayWhen       = @('auto', 'never', 'always')
     $ArrayYesNo      = @('never', 'always')
-    $ArrayWrap       = @('always', 'never', 'character', 'word')
-    $ArrayBinary     = @('no-printing', 'as-text')
+    $ArrayBinary     = @('no-printing', 'as-text', 'skip')
+    $ArrayWrap       = @('auto', 'never', 'character', 'word', 'truncate')
     $ArrayPrint      = @('unicode', 'caret')
 
     function Get-MyThemes(){
@@ -60,18 +60,21 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterName, $_)}
             break
         }
+        '*;--warning' {
+            @('none', 'missing-trailing-newline') |
+            ForEach-Object {[CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
+            break
+        }
         '*;--binary' {
-            $ArrayBinary |
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
             break
         }
-        '*;--style' {
+        {$_ -like '*;--style' -or $_ -like '*;--style-single-file' -or $_ -like '*;--style-stdin' -or $_ -like '*;--style-multiple-files'} {
             $ArrayStyle |
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
             break
         }
         '*;--wrap' {
-            $ArrayWrap |
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
             break
         }
@@ -81,6 +84,11 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
             break
         }
         '*;--italic-text' {
+            $ArrayYesNo |
+            ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
+            break
+        }
+        '*;--theme-background' {
             $ArrayYesNo |
             ForEach-Object {[System.Management.Automation.CompletionResult]::new($_, $_, [CompletionResultType]::ParameterValue, $_)}
             break
@@ -136,13 +144,19 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
         #   [CompletionResult]::new('-l'                      , 'l'                     , [CompletionResultType]::ParameterName, 'Set the language for syntax highlighting.')
             [CompletionResult]::new('--language'              , 'language'              , [CompletionResultType]::ParameterName, 'Set the language for syntax highlighting.')
         #   [CompletionResult]::new('-H'                      , 'H'                     , [CompletionResultType]::ParameterName, 'Highlight lines N through M.')
+            [CompletionResult]::new('--highlight-pattern'        , 'highlight-pattern'        , [CompletionResultType]::ParameterName, 'Highlight lines matching a regular expression.')
+            [CompletionResult]::new('--syntax-delimiter'        , 'syntax-delimiter'        , [CompletionResultType]::ParameterName, 'Reset highlighting before matching lines.')
             [CompletionResult]::new('--highlight-line'        , 'highlight-line'        , [CompletionResultType]::ParameterName, 'Highlight lines N through M.')
+            [CompletionResult]::new('--osc8'             , 'osc8'             , [CompletionResultType]::ParameterName, 'Link file headers and line numbers.')
+            [CompletionResult]::new('--osc8-highlight'             , 'osc8-highlight'             , [CompletionResultType]::ParameterName, 'Link only highlighted line numbers.')
+            [CompletionResult]::new('--hyperlink-format'             , 'hyperlink-format'             , [CompletionResultType]::ParameterName, 'Set the hyperlink URI template.')
             [CompletionResult]::new('--file-name'             , 'file-name'             , [CompletionResultType]::ParameterName, 'Specify the name to display for a file.')
             [CompletionResult]::new('--diff-context'          , 'diff-context'          , [CompletionResultType]::ParameterName, 'diff-context')
             [CompletionResult]::new('--tabs'                  , 'tabs'                  , [CompletionResultType]::ParameterName, 'Set the tab width to T spaces.')
-            [CompletionResult]::new('--wrap'                  , 'wrap'                  , [CompletionResultType]::ParameterName, 'Specify the text-wrapping mode (*auto*, never, character, word).')
+            [CompletionResult]::new('--wrap'                  , 'wrap'                  , [CompletionResultType]::ParameterName, 'Specify the text-wrapping mode (*auto*, never, character, word, truncate).')
             [CompletionResult]::new('--terminal-width'        , 'terminal-width'        , [CompletionResultType]::ParameterName, 'Explicitly set the width of the terminal instead of determining it automatically. If prefixed with ''+'' or ''-'', the value will be treated as an offset to the actual terminal width. See also: ''--wrap''.')
             [CompletionResult]::new('--color'                 , 'color'                 , [CompletionResultType]::ParameterName, 'When to use colors (*auto*, never, always).')
+            [CompletionResult]::new('--theme-background'           , 'theme-background'           , [CompletionResultType]::ParameterName, 'Apply theme background colors (always, *never*)')
             [CompletionResult]::new('--italic-text'           , 'italic-text'           , [CompletionResultType]::ParameterName, 'Use italics in output (always, *never*)')
             [CompletionResult]::new('--decorations'           , 'decorations'           , [CompletionResultType]::ParameterName, 'When to show the decorations (*auto*, never, always).')
             [CompletionResult]::new('--paging'                , 'paging'                , [CompletionResultType]::ParameterName, 'Specify when to use the pager, or use ''-P'' to disable (*auto*, never, always).')
@@ -152,14 +166,18 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
             [CompletionResult]::new('--theme'                 , 'theme'                 , [CompletionResultType]::ParameterName, 'Set the color theme for syntax highlighting.')
             [CompletionResult]::new('--theme-dark'            , 'themedark'             , [CompletionResultType]::ParameterName, 'Set the color theme for syntax highlighting for dark backgrounds.')
             [CompletionResult]::new('--theme-light'           , 'themelight'            , [CompletionResultType]::ParameterName, 'Set the color theme for syntax highlighting for light backgrounds.')
+            [CompletionResult]::new('--style-single-file'                 , 'style-single-file'                 , [CompletionResultType]::ParameterName, 'Comma-separated list of style elements to display (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, rule, numbers, snip).')
+            [CompletionResult]::new('--style-stdin'                 , 'style-stdin'                 , [CompletionResultType]::ParameterName, 'Comma-separated list of style elements to display (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, rule, numbers, snip).')
+            [CompletionResult]::new('--style-multiple-files'                 , 'style-multiple-files'                 , [CompletionResultType]::ParameterName, 'Comma-separated list of style elements to display (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, rule, numbers, snip).')
             [CompletionResult]::new('--style'                 , 'style'                 , [CompletionResultType]::ParameterName, 'Comma-separated list of style elements to display (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, rule, numbers, snip).')
         #   [CompletionResult]::new('-r'                      , 'r'                     , [CompletionResultType]::ParameterName, 'Only print the lines from N to M.')
             [CompletionResult]::new('--line-range'            , 'line-range'            , [CompletionResultType]::ParameterName, 'Only print the lines from N to M.')
         #   [CompletionResult]::new('-A'                      , 'A'                     , [CompletionResultType]::ParameterName, 'Show non-printable characters (space, tab, newline, ..).')
             [CompletionResult]::new('--show-all'              , 'show-all'              , [CompletionResultType]::ParameterName, 'Show non-printable characters (space, tab, newline, ..).')
             [CompletionResult]::new('--nonprintable-notation' , 'nonprintable-notation' , [CompletionResultType]::ParameterName, 'Set notation for non-printable characters. (unicode, caret)')
-            [CompletionResult]::new('--chop-long-lines'       , 'chop-long-lines'       , [CompletionResultType]::ParameterName, 'Truncate all lines longer than screen width. Alias for ''--wrap=never''.')
-            [CompletionResult]::new('--binary'                , 'binary'                , [CompletionResultType]::ParameterName, 'How to treat binary content. (*no-printing*, as-text)')
+            [CompletionResult]::new('--binary'                , 'binary'                , [CompletionResultType]::ParameterName, 'How to treat binary content. (*no-printing*, as-text, skip)')
+            [CompletionResult]::new('--warning'                , 'warning'                , [CompletionResultType]::ParameterName, 'Enable optional input warnings')
+            [CompletionResult]::new('--chop-long-lines'       , 'chop-long-lines'       , [CompletionResultType]::ParameterName, 'Disable wrapping. Alias for ''--wrap=never''.')
             [CompletionResult]::new('--ignored-suffix'        , 'ignored-suffix'        , [CompletionResultType]::ParameterName, 'Ignore extension. For example: ''bat --ignored-suffix ".dev" my_file.json.dev'' will use JSON syntax, and ignore ''.dev''')
             [CompletionResult]::new('--squeeze-blank'         , 'squeeze-blank'         , [CompletionResultType]::ParameterName, 'Squeeze consecutive empty lines into a single empty line.')
             [CompletionResult]::new('--squeeze-limit'         , 'squeeze-limit'         , [CompletionResultType]::ParameterName, 'Set the maximum number of consecutive empty lines to be printed.')
@@ -181,6 +199,7 @@ Register-ArgumentCompleter -Native -CommandName '{{PROJECT_EXECUTABLE}}' -Script
         #   [CompletionResult]::new('-u'                      , 'u'                     , [CompletionResultType]::ParameterName, 'u')
             [CompletionResult]::new('--unbuffered'            , 'unbuffered'            , [CompletionResultType]::ParameterName, 'Enable unbuffered input reading for streaming use cases')
             [CompletionResult]::new('--completion'            , 'completion'            , [CompletionResultType]::ParameterName, 'Show shell completion for a certain shell. [possible values: bash, fish, zsh, ps1]')
+            [CompletionResult]::new('--no-system-config'             , 'no-system-config'             , [CompletionResultType]::ParameterName, 'Ignore the system-wide configuration file')
             [CompletionResult]::new('--no-config'             , 'no-config'             , [CompletionResultType]::ParameterName, 'Do not use the configuration file')
             [CompletionResult]::new('--no-custom-assets'      , 'no-custom-assets'      , [CompletionResultType]::ParameterName, 'Do not load custom assets')
             [CompletionResult]::new('--lessopen'              , 'lessopen'              , [CompletionResultType]::ParameterName, 'Enable the $LESSOPEN preprocessor')

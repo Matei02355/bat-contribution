@@ -87,7 +87,7 @@ _bat() {
 		__bat_escape_completions
 		return 0
 		;;
-	-H | --highlight-line | \
+	-H | --highlight-line | --highlight-pattern | --syntax-delimiter | --hyperlink-format | \
 	--diff-context | \
 	--tabs | \
 	--terminal-width | \
@@ -117,11 +117,15 @@ _bat() {
 		return 0
 		;;
 	--wrap)
-		COMPREPLY=($(compgen -W "auto never character word" -- "$cur"))
+		COMPREPLY=($(compgen -W "auto never character word truncate" -- "$cur"))
+		return 0
+		;;
+	--warning)
+		COMPREPLY=($(compgen -W "none missing-trailing-newline" -- "$cur"))
 		return 0
 		;;
 	--binary)
-		COMPREPLY=($(compgen -W "no-printing as-text" -- "$cur"))
+		COMPREPLY=($(compgen -W "no-printing as-text skip" -- "$cur"))
 		return 0
 		;;
 	--nonprintable-notation)
@@ -144,7 +148,7 @@ _bat() {
 		COMPREPLY=($(compgen -W "auto never always" -- "$cur"))
 		return 0
 		;;
-	--italic-text)
+	--italic-text | --theme-background)
 		COMPREPLY=($(compgen -W "always never" -- "$cur"))
 		return 0
 		;;
@@ -165,7 +169,7 @@ _bat() {
 		__bat_escape_completions
 		return 0
 		;;
-	--style)
+	--style | --style-single-file | --style-stdin | --style-multiple-files)
 		# shellcheck disable=SC2034
 		local -a styles=(
 			default
@@ -177,6 +181,7 @@ _bat() {
 			header-filename
 			header-filesize
 			grid
+			grid-vertical
 			rule
 			numbers
 			snip
@@ -199,10 +204,16 @@ _bat() {
 			--show-all
 			--nonprintable-notation
 			--binary
+			--warning
 			--plain
 			--language
 			--highlight-line
+			--highlight-pattern
+			--syntax-delimiter
 			--file-name
+			--osc8
+			--osc8-highlight
+			--hyperlink-format
 			--diff
 			--diff-context
 			--tabs
@@ -212,6 +223,7 @@ _bat() {
 			--number
 			--color
 			--italic-text
+			--theme-background
 			--decorations
 			--force-colorization
 			--paging
@@ -228,6 +240,9 @@ _bat() {
 			--sanitize
 			--strip-ansi
 			--style
+			--style-single-file
+			--style-stdin
+			--style-multiple-files
 			--line-range
 			--list-languages
 			--lessopen
@@ -242,6 +257,7 @@ _bat() {
 			--config-dir
 			--config-file
 			--generate-config-file
+			--no-system-config
 			--no-config
 			--no-custom-assets
 			--no-lessopen

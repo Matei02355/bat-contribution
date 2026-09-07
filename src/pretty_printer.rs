@@ -24,6 +24,7 @@ struct ActiveStyleComponents {
     #[cfg(feature = "git")]
     vcs_modification_markers: bool,
     grid: bool,
+    grid_vertical: bool,
     rule: bool,
     line_numbers: bool,
     snip: bool,
@@ -115,6 +116,15 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Reset highlighting before lines matching the given regular expression.
+    pub fn syntax_delimiter(&mut self, pattern: &str) -> Result<&mut Self> {
+        self.config.syntax_delimiter = Some(
+            regex::Regex::new(pattern)
+                .map_err(|error| format!("Invalid syntax delimiter: {error}"))?,
+        );
+        Ok(self)
+    }
+
     /// The character width of the terminal (default: autodetect)
     pub fn term_width(&mut self, width: usize) -> &mut Self {
         self.term_width = Some(width);
@@ -157,6 +167,12 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Whether to separate the sidebar from the contents without horizontal borders.
+    pub fn grid_vertical(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.grid_vertical = yes;
+        self
+    }
+
     /// Whether to paint a horizontal rule to delimit files
     pub fn rule(&mut self, yes: bool) -> &mut Self {
         self.active_style_components.rule = yes;
@@ -174,6 +190,12 @@ impl<'a> PrettyPrinter<'a> {
     /// Whether to print binary content or nonprintable characters (default: no)
     pub fn show_nonprintable(&mut self, yes: bool) -> &mut Self {
         self.config.show_nonprintable = yes;
+        self
+    }
+
+    /// Report a missing final newline after the last visible line.
+    pub fn warn_missing_newline(&mut self, yes: bool) -> &mut Self {
+        self.config.warn_missing_newline = yes;
         self
     }
 
@@ -213,6 +235,18 @@ impl<'a> PrettyPrinter<'a> {
         self
     }
 
+    /// Configure OSC 8 hyperlinks, or disable them with `None`.
+    pub fn hyperlinks(&mut self, config: Option<crate::hyperlink::Hyperlink>) -> &mut Self {
+        self.config.hyperlink = config;
+        self
+    }
+
+    /// Whether to honor theme background colors for highlighted text (default: off)
+    pub fn use_theme_background(&mut self, yes: bool) -> &mut Self {
+        self.config.use_theme_background = yes;
+        self
+    }
+
     /// If and how to use a pager (default: no paging)
     #[cfg(feature = "paging")]
     pub fn paging_mode(&mut self, mode: PagingMode) -> &mut Self {
@@ -247,6 +281,16 @@ impl<'a> PrettyPrinter<'a> {
     pub fn highlight_range(&mut self, from: usize, to: usize) -> &mut Self {
         self.highlighted_lines.push(LineRange::new(from, to));
         self
+    }
+
+    /// Highlight lines matching a regular expression, in addition to explicit ranges.
+    /// Repeat this method to match any of several patterns.
+    pub fn highlight_pattern(&mut self, pattern: &str) -> Result<&mut Self> {
+        self.config.highlighted_patterns.push(
+            regex::Regex::new(pattern)
+                .map_err(|error| format!("Invalid highlight pattern: {error}"))?,
+        );
+        Ok(self)
     }
 
     /// Specify the maximum number of consecutive empty lines to print.
@@ -305,6 +349,11 @@ impl<'a> PrettyPrinter<'a> {
         self.config.style_components.clear();
         if self.active_style_components.grid {
             self.config.style_components.insert(StyleComponent::Grid);
+        }
+        if self.active_style_components.grid_vertical {
+            self.config
+                .style_components
+                .insert(StyleComponent::GridVertical);
         }
         if self.active_style_components.rule {
             self.config.style_components.insert(StyleComponent::Rule);

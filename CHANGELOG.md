@@ -9,6 +9,21 @@
 
 ## Features
 
+- Add `--binary=skip` to omit binary inputs even when output is redirected, see #3925 (@Matei02355)
+- Add `--no-system-config` to ignore machine-wide settings while retaining user configuration, see #3926 (@Matei02355)
+- Add the `grid-vertical` style for a sidebar separator without horizontal borders, see #3927 (@Matei02355)
+- Add `--highlight-pattern` to highlight lines matching regular expressions, see #3928 (@Matei02355)
+- Detect syntax from first-line Vim and Emacs modelines, see #3929 (@Matei02355)
+- Add `--syntax-delimiter` to reset highlighting between independent text sections, see #3930 (@Matei02355)
+
+- Allow separate styles for a single file, stdin, and multiple inputs, see #3931 (@Matei02355)
+
+- Add opt-in OSC 8 hyperlinks for filenames and line numbers, including highlighted-line links and custom URI templates. Closes #2158, see #3933 (@Matei02355)
+- Add an opt-in warning for a missing trailing newline without changing redirected file contents. Closes #975, see #3934 (@Matei02355)
+- Add `--wrap=truncate` to shorten long lines with an ellipsis, see #3923 (@Matei02355)
+
+- Add opt-in theme background colors through `--theme-background`, see #3924 (@Matei02355)
+
 - Add `-b` / `--number-nonblank` flag to only number non-blank lines, for `cat -b` compatibility. Closes #3856, see #3857 (@MeGaurav4)
 - Add a `--sanitize=<auto|always|never>` flag for safe display of untrusted input. It implies `--strip-ansi` at the same value and additionally substitutes terminal-active control bytes (cursor moves, charset switches, beep, etc.) and Unicode bidi / zero-width formatting characters with the Unicode replacement character (U+FFFD). Mitigates Trojan-Source-style spoofing (CVE-2021-42574). See #3729 (@curious-rabbit)
 - Map justfile, Justfile, .justfile, and *.justfile to Makefile syntax highlighting, see #3623 (@zachvalenta)
@@ -25,6 +40,14 @@
 - Syntax highlighting for Python files using uv as script runner in shebang #3689 (@janlarres)
 
 ## Bugfixes
+- Only highlight inserted nonprintable placeholders with `--show-all`, preserving literal escape spellings, see #3932 (@Matei02355)
+- Honor `--force-colorization` when displaying help, see #3915 (@Matei02355)
+
+- Allow terminal wrapping for styles without line numbers or change markers, see #3916 (@Matei02355)
+
+- Include languages without file extensions in language listings and completion candidates, see #3917 (@Matei02355)
+
+- Wrap colored headers using terminal display width and preserve their styling, see #3918 (@Matei02355)
 - Allow boolean flags to be given more than once, so that a flag set in the config file can also be passed on the command line without erroring, see #3912 (@logarithmone1128)
 - Use parsed CLI arguments to detect number flags, see #3908 (@cuishuang)
 - Detect binary content beyond the first line, preventing encrypted files with early line breaks from being treated as text. Closes #3554, see #3877 (@Matei02355)

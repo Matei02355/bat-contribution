@@ -22,6 +22,7 @@
 #![deny(unsafe_code)]
 
 mod macros;
+mod modeline;
 
 pub mod assets;
 pub mod assets_metadata {
@@ -32,6 +33,7 @@ pub mod controller;
 mod decorations;
 mod diff;
 pub mod error;
+pub mod hyperlink;
 pub mod input;
 mod less;
 #[cfg(feature = "lessopen")]

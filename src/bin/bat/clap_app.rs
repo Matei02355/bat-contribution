@@ -83,7 +83,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .long("binary")
                 .action(ArgAction::Set)
                 .default_value("no-printing")
-                .value_parser(["no-printing", "as-text"])
+                .value_parser(["no-printing", "as-text", "skip"])
                 .value_name("behavior")
                 .hide_default_value(true)
                 .help("How to treat binary content. (default: no-printing)")
@@ -91,7 +91,9 @@ pub fn build_app(interactive_output: bool) -> Command {
                     "How to treat binary content. (default: no-printing)\n\n\
                     Possible values:\n  \
                     * no-printing: do not print any binary content\n  \
-                    * as-text: treat binary content as normal text",
+                    * as-text: treat binary content as normal text\n  \
+                    * skip: omit binary inputs entirely, even when output is redirected or \
+                    '--show-all' is used",
                 ),
         )
         .arg(
@@ -123,6 +125,21 @@ pub fn build_app(interactive_output: bool) -> Command {
                 ),
         )
         .arg(
+            Arg::new("syntax-delimiter")
+                .long("syntax-delimiter")
+                .overrides_with("syntax-delimiter")
+                .value_name("regex")
+                .value_parser(regex::Regex::new)
+                .help("Reset highlighting before lines matching a regular expression.")
+                .long_help(
+                    "Reset syntax highlighting state before each line matching a regular \
+                     expression. Useful for independent snippets or shell history entries with \
+                     unmatched quotes. Delimiter lines are still printed and highlighted. \
+                     Matches exclude line endings and are evaluated before wrapping. \
+                     For example, '--syntax-delimiter=^---$' starts a new section at each '---' line.",
+                ),
+        )
+        .arg(
             Arg::new("fallback-syntax")
                 .long("fallback-syntax")
                 .visible_alias("fallback-language")
@@ -131,6 +148,20 @@ pub fn build_app(interactive_output: bool) -> Command {
                     "Set a fallback language for syntax highlighting when auto-detection fails. \
                      Unlike '--language', this is only used when no syntax could be detected from \
                      filename, custom syntax mappings, or first-line detection.",
+                ),
+        )
+        .arg(
+            Arg::new("highlight-pattern")
+                .long("highlight-pattern")
+                .action(ArgAction::Append)
+                .value_name("regex")
+                .value_parser(regex::Regex::new)
+                .help("Highlight lines matching a regular expression.")
+                .long_help(
+                    "Highlight lines matching a regular expression, using the same style as \
+                     '--highlight-line'. Matches exclude the line ending and are evaluated before \
+                     wrapping. Repeat the option to match any of several patterns; it can also be \
+                     combined with '--highlight-line'. Use '(?i)' for case-insensitive matching.",
                 ),
         )
         .arg(
@@ -151,6 +182,37 @@ pub fn build_app(interactive_output: bool) -> Command {
                 ),
         )
         .arg(
+            Arg::new("osc8")
+                .long("osc8")
+                .action(ArgAction::SetTrue)
+                .overrides_with_all(["osc8", "osc8-highlight"])
+                .help("Link file headers and line numbers using OSC 8 hyperlinks."),
+        )
+        .arg(
+            Arg::new("osc8-highlight")
+                .long("osc8-highlight")
+                .action(ArgAction::SetTrue)
+                .overrides_with_all(["osc8", "osc8-highlight"])
+                .help("Link only highlighted line numbers using OSC 8 hyperlinks."),
+        )
+        .arg(
+            Arg::new("hyperlink-format")
+                .long("hyperlink-format")
+                .overrides_with("hyperlink-format")
+                .default_value("file://{path}")
+                .hide_default_value(true)
+                .value_name("URI")
+                .value_parser(|value: &str| bat::hyperlink::Hyperlink::new(value, false).map(|_| value.to_owned()).map_err(|e| e.to_string()))
+                .help("Set the URI template used by --osc8 and --osc8-highlight.")
+                .long_help(
+                    "Set the URI template for OSC 8 links. '{path}' is replaced by the percent-encoded \
+                     absolute path and '{line}' by the line number (1 for headers). The default, \
+                     'file://{path}', opens the file. Use an editor-specific template such as \
+                     'vscode://file{path}:{line}' to open a particular line. Unnamed stdin has no links. \
+                     These options require a terminal or pager that supports OSC 8.",
+                ),
+        )
+        .arg(
             Arg::new("file-name")
                 .long("file-name")
                 .action(ArgAction::Append)
@@ -164,6 +226,40 @@ pub fn build_app(interactive_output: bool) -> Command {
                      used for syntax detection.",
                 ),
         );
+
+    for (name, description) in [
+        (
+            "style-single-file",
+            "Override the style when displaying one file.",
+        ),
+        (
+            "style-stdin",
+            "Override the style when displaying only standard input.",
+        ),
+        (
+            "style-multiple-files",
+            "Override the style when displaying multiple inputs.",
+        ),
+    ] {
+        app = app.arg(
+            Arg::new(name)
+                .long(name)
+                .value_name("components")
+                .action(ArgAction::Append)
+                .value_parser(|s: &str| {
+                    StyleComponentList::from_str(s)
+                        .map(|_| s.to_owned())
+                        .map_err(|e| e.to_string())
+                })
+                .help(description)
+                .long_help(format!(
+                    "{description} Uses the same components and +/- modifiers as '--style'. \
+                     Applied after the general style. Multiple inputs include any combination of \
+                     files and '-'. Explicit '--plain', numbering flags, and '--decorations=never' \
+                     still take precedence."
+                )),
+        );
+    }
 
     #[cfg(feature = "git")]
     {
@@ -225,13 +321,14 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .long("wrap")
                 .overrides_with("wrap")
                 .value_name("mode")
-                .value_parser(["auto", "never", "character", "word"])
+                .value_parser(["auto", "never", "character", "word", "truncate"])
                 .default_value("auto")
                 .hide_default_value(true)
-                .help("Specify the text-wrapping mode (*auto*, never, character, word).")
-                .long_help("Specify the text-wrapping mode (*auto*, never, character, word). \
+                .help("Specify the text-wrapping mode (*auto*, never, character, word, truncate).")
+                .long_help("Specify the text-wrapping mode (*auto*, never, character, word, truncate). \
                            The '--terminal-width' option can be used in addition to \
-                           control the output width."),
+                           control the output width. In truncate mode, long lines end with \
+                           an ellipsis. Tabs are expanded, using eight columns when '--tabs=0'."),
         )
         .arg(
             Arg::new("chop-long-lines")
@@ -239,7 +336,9 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .short('S')
                 .overrides_with("chop-long-lines")
                 .action(ArgAction::SetTrue)
-                .help("Truncate all lines longer than screen width. Alias for '--wrap=never'."),
+                .help("Disable wrapping. Alias for '--wrap=never'.")
+                .long_help("Disable wrapping. Alias for '--wrap=never'. The pager may scroll long \
+                    lines horizontally. Use '--wrap=truncate' to truncate output instead."),
         )
         .arg(
             Arg::new("terminal-width")
@@ -323,6 +422,19 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .hide_default_value(true)
                 .help("Use italics in output (always, *never*)")
                 .long_help("Specify when to use ANSI sequences for italic text in the output. Possible values: always, *never*."),
+        )
+        .arg(
+            Arg::new("theme-background")
+                .long("theme-background")
+                .value_name("when")
+                .value_parser(["always", "never"])
+                .default_value("never")
+                .hide_default_value(true)
+                .help("Apply theme background colors to text (always, *never*).")
+                .long_help("Apply the theme's background colors to highlighted text. \
+                    This includes backgrounds assigned to individual syntax tokens. \
+                    Highlighted lines take precedence over theme backgrounds. \
+                    Requires colored output. Possible values: always, *never*."),
         )
         .arg(
             Arg::new("decorations")
@@ -534,7 +646,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                 })
                 .help(
                     "Comma-separated list of style elements to display \
-                     (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, rule, numbers, snip).",
+                     (*default*, auto, full, plain, changes, header, header-filename, header-filesize, grid, grid-vertical, rule, numbers, snip).",
                 )
                 .long_help(
                     "Configure which elements (line numbers, file headers, grid \
@@ -563,6 +675,7 @@ pub fn build_app(interactive_output: bool) -> Command {
                      * header-filesize: show file sizes before the content.\n  \
                      * grid: vertical/horizontal lines to separate side bar\n          \
                        and the header from the content.\n  \
+                     * grid-vertical: only the vertical line separating the side bar.\n  \
                      * rule: horizontal lines to delimit files.\n  \
                      * numbers: show line numbers in the side bar.\n  \
                      * snip: draw separation lines between distinct line ranges.",
@@ -612,6 +725,18 @@ pub fn build_app(interactive_output: bool) -> Command {
                      'tail -f logfile | bat -u --paging=never'. Note that line numbers \
                      are automatically disabled in unbuffered mode, and syntax \
                      highlighting may be imperfect on partial lines.",
+                ),
+        )
+        .arg(
+            Arg::new("no-system-config")
+                .long("no-system-config")
+                .action(ArgAction::SetTrue)
+                .overrides_with("no-system-config")
+                .help("Ignore the system-wide configuration file.")
+                .long_help(
+                    "Ignore the system-wide configuration file while still loading the user \
+                     configuration (including BAT_CONFIG_PATH) and environment options. \
+                     This option must be passed on the command line.",
                 ),
         )
         .arg(
@@ -700,6 +825,22 @@ pub fn build_app(interactive_output: bool) -> Command {
                 .action(ArgAction::SetTrue)
                 .hide_short_help(true)
                 .help("Show diagnostic information for bug reports."),
+        )
+        .arg(
+            Arg::new("warning")
+                .long("warning")
+                .overrides_with("warning")
+                .value_name("kind")
+                .value_parser(["none", "missing-trailing-newline"])
+                .default_value("none")
+                .hide_default_value(true)
+                .help("Enable optional input warnings.")
+                .long_help(
+                    "Enable optional input warnings: 'none' (default) or 'missing-trailing-newline'. \
+                     A missing final newline is reported below formatted output, or on standard \
+                     error in plain redirected output. Empty files and final lines excluded by \
+                     '--line-range' do not produce this warning.",
+                ),
         )
         .arg(
             Arg::new("quiet-empty")

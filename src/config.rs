@@ -41,6 +41,9 @@ pub struct Config<'a> {
     /// The fallback syntax used when auto-detection fails
     pub fallback_syntax: Option<&'a str>,
 
+    /// Reset syntax highlighting before lines matching this regular expression.
+    pub syntax_delimiter: Option<regex::Regex>,
+
     /// Whether or not to show/replace non-printable characters like space, tab and newline.
     pub show_nonprintable: bool,
 
@@ -91,8 +94,17 @@ pub struct Config<'a> {
     /// Whether or not to use ANSI italics
     pub use_italic_text: bool,
 
+    /// Optional OSC 8 links for file headers and line numbers.
+    pub hyperlink: Option<crate::hyperlink::Hyperlink>,
+
+    /// Whether to honor theme background colors for highlighted text
+    pub use_theme_background: bool,
+
     /// Ranges of lines which should be highlighted with a special background color
     pub highlighted_lines: HighlightedLineRanges,
+
+    /// Regular expressions selecting additional lines to highlight.
+    pub highlighted_patterns: Vec<regex::Regex>,
 
     /// Whether or not to allow custom assets. If this is false or if custom assets (a.k.a.
     /// cached assets) are not available, assets from the binary will be used instead.
@@ -116,6 +128,9 @@ pub struct Config<'a> {
 
     /// Whether or not to produce no output when input is empty
     pub quiet_empty: bool,
+
+    /// Report a missing final newline after reading the input to EOF.
+    pub warn_missing_newline: bool,
 
     /// Whether or not to use unbuffered input reading for streaming use cases
     pub unbuffered: bool,
