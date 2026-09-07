@@ -83,7 +83,7 @@ Options:
           Comma-separated list of style elements to display (*default*, auto, full, plain, changes,
           changes-highlight, header, header-filename, header-filesize, header-path, header-modified,
           header-permissions, highlight-indicator, grid, grid-vertical, rule, numbers, sidebar,
-          snip).
+          snip, sidebar-right).
   -r, --line-range <N:M>
           Only print the lines from N to M.
   -L, --list-languages

@@ -93,6 +93,7 @@ function __bat_style_opts
         "highlight-indicator,text markers for highlighted lines" \
         "numbers,line numbers in sidebar" \
         "sidebar,line numbers and Git changes" \
+        "sidebar-right,sidebar decorations on the right" \
         "rule,separate files" \
         "snip,separate ranges"
 

@@ -33,6 +33,7 @@ struct ActiveStyleComponents {
     rule: bool,
     line_numbers: bool,
     highlight_indicator: bool,
+    sidebar_right: bool,
     snip: bool,
 }
 
@@ -260,6 +261,12 @@ impl<'a> PrettyPrinter<'a> {
     /// The column is omitted when no highlight ranges are configured.
     pub fn highlight_indicator(&mut self, yes: bool) -> &mut Self {
         self.active_style_components.highlight_indicator = yes;
+        self
+    }
+
+    /// Whether to place the selected sidebar decorations on the right.
+    pub fn sidebar_right(&mut self, yes: bool) -> &mut Self {
+        self.active_style_components.sidebar_right = yes;
         self
     }
 
@@ -538,6 +545,11 @@ impl<'a> PrettyPrinter<'a> {
             self.config
                 .style_components
                 .insert(StyleComponent::LineNumbers);
+        }
+        if self.active_style_components.sidebar_right {
+            self.config
+                .style_components
+                .insert(StyleComponent::SidebarRight);
         }
         if self.active_style_components.snip {
             self.config.style_components.insert(StyleComponent::Snip);

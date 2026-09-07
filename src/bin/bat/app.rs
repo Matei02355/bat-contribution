@@ -808,7 +808,21 @@ impl App {
             "style-single-file"
         };
         let mut styled_components = match self.forced_style_components() {
-            Some(forced_components) => forced_components,
+            Some(mut forced_components) => {
+                // Number/plain shortcuts choose decorations; sidebar-right only
+                // changes their placement and does not enable another decoration.
+                if let Some(styles) = matches.get_many::<String>("style") {
+                    let lists = styles
+                        .map(|style| StyleComponentList::from_str(style))
+                        .collect::<Result<Vec<_>>>()?;
+                    if StyleComponentList::to_components(lists, self.interactive_output, false)
+                        .sidebar_right()
+                    {
+                        forced_components.insert(StyleComponent::SidebarRight);
+                    }
+                }
+                forced_components
+            }
 
             // Parse the `--style` arguments and merge them.
             None if matches.contains_id("style") || matches.contains_id(context) => {
@@ -872,7 +886,11 @@ impl App {
         }
         for (_, components) in &mut styles {
             if let Some(forced) = self.forced_style_components() {
+                let sidebar_right = components.sidebar_right();
                 *components = forced;
+                if sidebar_right {
+                    components.insert(StyleComponent::SidebarRight);
+                }
             }
             if components.grid() {
                 components.0.remove(&StyleComponent::Rule);

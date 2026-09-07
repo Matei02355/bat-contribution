@@ -337,7 +337,7 @@ By default, the following components are enabled:
 changes, grid, header\-filename, numbers, snip
 .IP
 Possible values: *default*, full, auto, plain, changes, changes-highlight, header, header-filename, header-filesize, header-path, header-modified, header-permissions, highlight-indicator, grid, grid-vertical,
-rule, numbers, sidebar, snip.
+rule, numbers, sidebar, snip, sidebar-right.
 
 .PP
 The 'grid-vertical' style draws only the sidebar separator, without top or bottom
@@ -369,6 +369,11 @@ Lists containing only '+' or '\-' modifiers build on the general style;
 repeated entries for the same syntax are applied in order. Plain/number flags
 and '\-\-decorations=never' take precedence. Wrapping and tab settings remain
 global. This option can also be used in the configuration file.
+.PP
+The sidebar-right modifier moves the selected line numbers, Git markers and grid
+to the right of the content. For example, '--style=default,sidebar-right' uses the
+default decorations on the right. It does not enable decorations by itself.
+With wrapping disabled, overlong content places its sidebar after the complete line.
 .HP
 \fB\-r\fR, \fB\-\-line\-range\fR <N:M>...
 .IP

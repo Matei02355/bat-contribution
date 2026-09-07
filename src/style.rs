@@ -23,6 +23,7 @@ pub enum StyleComponent {
     HeaderPermissions,
     LineNumbers,
     Sidebar,
+    SidebarRight,
     Snip,
     Full,
     Default,
@@ -59,6 +60,7 @@ impl StyleComponent {
                 StyleComponent::Changes,
                 StyleComponent::LineNumbers,
             ],
+            StyleComponent::SidebarRight => &[StyleComponent::SidebarRight],
             StyleComponent::Snip => &[StyleComponent::Snip],
             StyleComponent::Full => &[
                 #[cfg(feature = "git")]
@@ -110,6 +112,7 @@ impl FromStr for StyleComponent {
             "header-permissions" => Ok(StyleComponent::HeaderPermissions),
             "numbers" => Ok(StyleComponent::LineNumbers),
             "sidebar" => Ok(StyleComponent::Sidebar),
+            "sidebar-right" => Ok(StyleComponent::SidebarRight),
             "snip" => Ok(StyleComponent::Snip),
             "full" => Ok(StyleComponent::Full),
             "default" => Ok(StyleComponent::Default),
@@ -191,7 +194,13 @@ impl StyleComponents {
     }
 
     pub fn plain(&self) -> bool {
-        self.0.iter().all(|c| c == &StyleComponent::Plain)
+        self.0
+            .iter()
+            .all(|c| matches!(c, StyleComponent::Plain | StyleComponent::SidebarRight))
+    }
+
+    pub fn sidebar_right(&self) -> bool {
+        self.0.contains(&StyleComponent::SidebarRight)
     }
 
     pub fn insert(&mut self, component: StyleComponent) {

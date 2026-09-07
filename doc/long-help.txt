@@ -315,7 +315,7 @@ Options:
           Possible values:
           
             * default: enables recommended style components (default).
-            * full: enables all available components.
+            * full: enables all decorations.
             * auto: same as 'default', unless the output is piped.
             * plain: disables all available components.
             * changes: show Git modification markers.
@@ -335,6 +335,7 @@ Options:
             * numbers: show line numbers in the side bar.
             * sidebar: show line numbers and Git modification markers.
             * snip: draw separation lines between distinct line ranges.
+            * sidebar-right: place the selected sidebar decorations on the right.
 
       --max-bytes <N>
           Read at most N bytes from each input, before line buffering. --head is an alias. Useful

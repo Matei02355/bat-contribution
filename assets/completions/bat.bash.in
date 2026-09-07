@@ -208,6 +208,7 @@ _bat() {
 			rule
 			numbers
 			sidebar
+			sidebar-right
 			snip
 		)
 		# shellcheck disable=SC2016
