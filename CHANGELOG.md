@@ -71,7 +71,7 @@
 
 ## Syntaxes
 
-- Preserve ordinary highlighting in unindented manpage prose, including fish documentation, see #0 (@Matei02355)
+- Preserve ordinary highlighting in unindented manpage prose, including fish documentation, see #3974 (@Matei02355)
 
 - Add shebang-based detection for Tcl (`tclsh`, `wish`) and Expect (`expect`) scripts, see #3647 (@mvanhorn)
 - Change the URL of Zig submodule from GitHub to Codeberg, see #3519 (@sorairolake)
