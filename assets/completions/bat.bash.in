@@ -94,6 +94,7 @@ _bat() {
 		__bat_escape_completions
 		return 0
 		;;
+	--scroll-to | \
 	-H | --highlight-line | --highlight-pattern | --syntax-delimiter | --hyperlink-format | \
 	--diff-context | \
 	--tabs | \
@@ -253,6 +254,9 @@ _bat() {
 			--theme-background
 			--decorations
 			--force-colorization
+			--scroll-to
+			--center-highlight
+			--literal-file-names
 			--paging
 			--no-paging
 			--pager

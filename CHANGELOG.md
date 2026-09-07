@@ -1,7 +1,13 @@
 # unreleased
 
 
+## Features
+
+- Open a single input at a line with `--scroll-to`, center its first visible highlight with `--center-highlight`, or use `file:line` while retaining earlier output, see #3990 (@Matei02355)
+
 ## Other
+
+- Replace deprecated `serde_yaml` with `serde_yaml_ng` while retaining cache metadata compatibility, see #3989 (@Matei02355)
 - Publish SHA-256 checksum sidecars for release archives and Debian packages, see #3943 (@Matei02355)
 
 - Publish versionless release download aliases alongside existing archives and Debian packages, see #3973 (@Matei02355)
