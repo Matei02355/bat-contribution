@@ -3,7 +3,7 @@
 
 ## Other
 
-- Add an optional profile-guided build script with output verification and reproducible benchmarks, see #0 (@Matei02355)
+- Add an optional profile-guided build script with output verification and reproducible benchmarks, see #3983 (@Matei02355)
 
 - Update Cargo dependencies to resolve current RustSec advisories, see #3861 (@TyceHerrman)
 - Add instructions for removing fish help abbreviations to README, see #3655 (@claw-explorer). Closes #3536
